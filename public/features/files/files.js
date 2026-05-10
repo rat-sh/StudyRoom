@@ -40,18 +40,20 @@ function renderFiles() {
       <a class="file-dl" href="${f.data}" download="${f.name}">↓</a>
     </div>
   `).join('');
+  if (window.parent && window.parent.lucide) window.parent.lucide.createIcons();
+  else if (window.lucide) lucide.createIcons();
 }
 
 function getFileIcon(type) {
-  if (!type) return '📄';
-  if (type.startsWith('image')) return '🖼️';
-  if (type.startsWith('video')) return '🎥';
-  if (type.startsWith('audio')) return '🎵';
-  if (type.includes('pdf')) return '📕';
-  if (type.includes('zip') || type.includes('rar')) return '🗜️';
-  if (type.includes('sheet') || type.includes('excel')) return '📊';
-  if (type.includes('word') || type.includes('document')) return '📝';
-  return '📄';
+  if (!type) return '<i data-lucide="file" style="width:16px;height:16px"></i>';
+  if (type.startsWith('image')) return '<i data-lucide="image" style="width:16px;height:16px"></i>';
+  if (type.startsWith('video')) return '<i data-lucide="video" style="width:16px;height:16px"></i>';
+  if (type.startsWith('audio')) return '<i data-lucide="music" style="width:16px;height:16px"></i>';
+  if (type.includes('pdf')) return '<i data-lucide="file-text" style="width:16px;height:16px"></i>';
+  if (type.includes('zip') || type.includes('rar')) return '<i data-lucide="file-archive" style="width:16px;height:16px"></i>';
+  if (type.includes('sheet') || type.includes('excel')) return '<i data-lucide="sheet" style="width:16px;height:16px"></i>';
+  if (type.includes('word') || type.includes('document')) return '<i data-lucide="file-text" style="width:16px;height:16px"></i>';
+  return '<i data-lucide="file" style="width:16px;height:16px"></i>';
 }
 
 function formatSize(bytes) {

@@ -28,11 +28,13 @@
   </div>
   <div class="timer-round">Round <span id="round-num">1</span></div>
   <div class="timer-controls">
-    <button class="timer-btn reset" onclick="resetTimer()">↺ Reset</button>
-    <button class="timer-btn start" id="start-btn" onclick="toggleTimer()">▶ Start</button>
+    <button class="timer-btn reset" onclick="resetTimer()"><i data-lucide="rotate-ccw" style="width:14px;height:14px;margin-right:4px"></i> Reset</button>
+    <button class="timer-btn start" id="start-btn" onclick="toggleTimer()"><i data-lucide="play" style="width:14px;height:14px;margin-right:4px;fill:currentColor"></i> Start</button>
   </div>
   <div class="timer-note">Timer synced with all room members</div>
 </div>
 <script src="/features/timer/timer.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

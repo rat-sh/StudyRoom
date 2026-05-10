@@ -1,5 +1,6 @@
-const express = require('express');
-const supabase = require('../supabase');
+import express from 'express';
+import supabase from '../supabase.js';
+
 const router = express.Router();
 
 router.get('/rooms', async (req, res) => {
@@ -17,4 +18,4 @@ router.get('/rooms', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-module.exports = router;
+export default router;

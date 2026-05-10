@@ -1,4 +1,4 @@
-module.exports = function(io, rooms) {
+export default function(io, rooms) {
   io.on('connection', (socket) => {
     socket.on('raise-hand', ({ roomCode }) => {
       io.to(roomCode).emit('hand-raised', { socketId: socket.id, name: socket.data?.user?.name });
@@ -7,4 +7,4 @@ module.exports = function(io, rooms) {
       io.to(roomCode).emit('reaction', { socketId: socket.id, name: socket.data?.user?.name, emoji });
     });
   });
-};
+}

@@ -21,7 +21,8 @@ function filterRooms() {
 function renderRooms(rooms) {
   const grid = document.getElementById('rooms-grid');
   if (!rooms.length) {
-    grid.innerHTML = '<div class="lobby-empty"><div class="empty-icon">📚</div><p>No public rooms right now.<br>Be the first to create one!</p></div>';
+    grid.innerHTML = '<div class="lobby-empty"><div class="empty-icon"><i data-lucide="book-x" style="width:32px;height:32px"></i></div><p>No public rooms right now.<br>Be the first to create one!</p></div>';
+    if (window.lucide) lucide.createIcons();
     return;
   }
   grid.innerHTML = rooms.map(r => {
@@ -36,7 +37,7 @@ function renderRooms(rooms) {
       </div>
       <div class="members-bar"><div class="members-bar-fill ${full ? 'full' : ''}" style="width:${pct}%"></div></div>
       <div class="lobby-card-meta">
-        <div class="members-count">👥 ${count}/${max}</div>
+        <div class="members-count"><i data-lucide="users" style="width:14px;height:14px"></i> ${count}/${max}</div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--hint)">${r.code}</div>
       </div>
       <button class="lobby-join-btn" ${full ? 'disabled' : ''} onclick="openNameModal('${r.code}')">
@@ -44,6 +45,7 @@ function renderRooms(rooms) {
       </button>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 function openNameModal(code) {
@@ -54,7 +56,15 @@ function openNameModal(code) {
 
 function closeNameModal() {
   document.getElementById('name-modal').classList.remove('open');
-  selectedCode = null;
+  document.getElementById('guest-name-input').value = '';
+}
+
+function joinAnonymous() {
+  const adjs = ['Clever', 'Swift', 'Silent', 'Brave', 'Mighty', 'Bright', 'Calm', 'Fast', 'Smart', 'Happy'];
+  const nouns = ['Panda', 'Fox', 'Owl', 'Tiger', 'Bear', 'Wolf', 'Hawk', 'Lion', 'Eagle', 'Koala'];
+  const name = adjs[Math.floor(Math.random()*adjs.length)] + ' ' + nouns[Math.floor(Math.random()*nouns.length)];
+  document.getElementById('guest-name-input').value = name;
+  confirmJoin();
 }
 
 async function confirmJoin() {

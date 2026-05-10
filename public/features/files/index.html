@@ -16,7 +16,7 @@
     <p>Share files with everyone in the room</p>
   </div>
   <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-    <div class="drop-icon">📁</div>
+    <div class="drop-icon"><i data-lucide="folder-up" style="width:32px;height:32px;color:var(--accent)"></i></div>
     <div class="drop-text">Click or drag files here</div>
     <div class="drop-sub">Max 10MB per file</div>
     <input type="file" id="file-input" multiple style="display:none" onchange="handleFiles(this.files)"/>
@@ -26,5 +26,7 @@
   </div>
 </div>
 <script src="/features/files/files.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

@@ -32,3 +32,29 @@ function initials(name) {
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// ── THEME ──────────────────────────────────────────────────────
+(function() {
+  const storedTheme = localStorage.getItem('sr_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', storedTheme);
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+  const storedTheme = localStorage.getItem('sr_theme') || 'light';
+  const iconId = document.getElementById('theme-icon');
+  if (iconId) {
+    iconId.setAttribute('data-lucide', storedTheme === 'dark' ? 'sun' : 'moon');
+  }
+});
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const newTheme = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('sr_theme', newTheme);
+  const iconId = document.getElementById('theme-icon');
+  if (iconId && window.lucide) {
+    iconId.setAttribute('data-lucide', newTheme === 'dark' ? 'sun' : 'moon');
+    lucide.createIcons();
+  }
+}

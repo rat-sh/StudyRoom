@@ -3,28 +3,46 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>StudyRoom — Sign Up</title>
+<title>StudyRoom — Create Account</title>
+<meta name="description" content="Create your StudyRoom account and start studying together."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/auth.css"/>
 </head>
 <body>
 <div class="auth-page">
+  <button onclick="toggleTheme()" style="position:absolute;top:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:50%;width:40px;height:40px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);" title="Toggle Theme">
+    <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
+  </button>
   <div class="auth-card">
-    <div class="auth-logo"><span class="dot"></span> StudyRoom</div>
+    <div class="auth-logo">
+      <div class="auth-logo-icon"><i data-lucide="book-open"></i></div>
+      StudyRoom
+    </div>
     <h1>Create account</h1>
-    <p class="sub">Join and start studying together</p>
-    <div id="err" class="error-msg hidden"></div>
-    <div class="field"><label>Full name</label><input type="text" id="name" placeholder="Rahul Das" autocomplete="name"/></div>
-    <div class="field"><label>Email</label><input type="email" id="email" placeholder="you@example.com" autocomplete="email"/></div>
-    <div class="field"><label>Password</label><input type="password" id="password" placeholder="Min 6 characters" autocomplete="new-password"/></div>
-    <button class="btn-primary" id="btn" onclick="doSignup()">Create account</button>
-    <div class="auth-switch">Already have an account? <a href="/">Login</a></div>
+    <p class="sub">Join thousands studying together in real-time</p>
+    <div id="err" class="error-msg hidden"><i data-lucide="alert-circle" style="width:16px;height:16px"></i><span id="err-text" style="margin-left:4px"></span></div>
+    <div class="field">
+      <label>Full name</label>
+      <input type="text" id="name" placeholder="Your name" autocomplete="name"/>
+    </div>
+    <div class="field">
+      <label>Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email"/>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Min 6 characters" autocomplete="new-password"/>
+    </div>
+    <button class="btn-primary" id="btn" onclick="doSignup()">Create Account</button>
+    <div class="auth-switch">Already have an account? <a href="/">Sign in</a></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 <script src="/core/js/api.js"></script>
 <script src="/core/js/auth.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

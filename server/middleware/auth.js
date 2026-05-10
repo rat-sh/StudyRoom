@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'studyroom-secret';
 
-module.exports = function(req, res, next) {
+export default function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'No token' });
   try {
@@ -10,4 +10,4 @@ module.exports = function(req, res, next) {
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
-};
+}

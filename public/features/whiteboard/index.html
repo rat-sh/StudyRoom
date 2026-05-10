@@ -12,22 +12,45 @@
 <body>
 <div class="wb-wrap">
   <div class="wb-toolbar">
-    <button class="wb-tool active" id="tool-pen" onclick="setTool('pen')" title="Pen">✏️</button>
-    <button class="wb-tool" id="tool-rect" onclick="setTool('rect')" title="Rectangle">⬜</button>
-    <button class="wb-tool" id="tool-circle" onclick="setTool('circle')" title="Circle">⭕</button>
-    <button class="wb-tool" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">🧹</button>
+    <!-- Drawing tools -->
+    <button class="wb-tool active" id="tool-pen" onclick="setTool('pen')" title="Pen (P)"><i data-lucide="pen" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" id="tool-line" onclick="setTool('line')" title="Line"><div style="width:16px;height:2px;background:currentColor;transform:rotate(-45deg)"></div></button>
+    <button class="wb-tool" id="tool-rect" onclick="setTool('rect')" title="Rectangle"><i data-lucide="square" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" id="tool-circle" onclick="setTool('circle')" title="Circle"><i data-lucide="circle" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" id="tool-text" onclick="setTool('text')" title="Text (T)"><i data-lucide="type" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" id="tool-eraser" onclick="setTool('eraser')" title="Eraser (E)"><i data-lucide="eraser" style="width:16px;height:16px"></i></button>
     <div class="wb-sep"></div>
-    <input type="color" id="color-pick" value="#1D9E75" onchange="setColor(this.value)" title="Color"/>
+
+    <!-- Color -->
+    <span class="wb-label">Color</span>
+    <div class="wb-color-swatch" id="color-swatch" style="background:#00B894">
+      <input type="color" id="color-pick" value="#00B894" onchange="setColor(this.value)" title="Pick color"/>
+    </div>
+    <!-- Quick colors -->
+    <div style="width:18px;height:18px;border-radius:50%;background:#fff;cursor:pointer;border:1px solid var(--border2)" onclick="setColor('#ffffff');document.getElementById('color-pick').value='#ffffff'" title="White"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#FF4757;cursor:pointer" onclick="setColor('#FF4757');document.getElementById('color-pick').value='#FF4757'" title="Red"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#2ED573;cursor:pointer" onclick="setColor('#2ED573');document.getElementById('color-pick').value='#2ED573'" title="Green"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#FFA502;cursor:pointer" onclick="setColor('#FFA502');document.getElementById('color-pick').value='#FFA502'" title="Yellow"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#00B894;cursor:pointer" onclick="setColor('#00B894');document.getElementById('color-pick').value='#00B894'" title="Purple"></div>
+
     <div class="wb-sep"></div>
-    <button class="wb-tool" id="tool-thin" onclick="setSize(2)" title="Thin">─</button>
-    <button class="wb-tool active-size" id="tool-mid" onclick="setSize(4)" title="Medium">━</button>
-    <button class="wb-tool" id="tool-thick" onclick="setSize(8)" title="Thick">▬</button>
+
+    <!-- Stroke size -->
+    <span class="wb-label">Size</span>
+    <button class="wb-tool" id="tool-thin" onclick="setSize(2)" title="Thin"><div style="width:12px;height:2px;background:currentColor;border-radius:1px"></div></button>
+    <button class="wb-tool active-size" id="tool-mid" onclick="setSize(4)" title="Medium"><div style="width:14px;height:4px;background:currentColor;border-radius:2px"></div></button>
+    <button class="wb-tool" id="tool-thick" onclick="setSize(8)" title="Thick"><div style="width:16px;height:8px;background:currentColor;border-radius:4px"></div></button>
+
     <div class="wb-sep"></div>
-    <button class="wb-tool" onclick="undoLast()" title="Undo">↩</button>
-    <button class="wb-tool" onclick="clearBoard()" title="Clear">🗑️</button>
+
+    <!-- Actions -->
+    <button class="wb-tool" onclick="undoLast()" title="Undo (Ctrl+Z)"><i data-lucide="undo-2" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" onclick="clearBoard()" title="Clear all"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>
   </div>
   <canvas id="wb-canvas"></canvas>
 </div>
 <script src="/features/whiteboard/whiteboard.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

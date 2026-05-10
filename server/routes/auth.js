@@ -1,7 +1,8 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const supabase = require('../supabase');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import supabase from '../supabase.js';
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'studyroom-secret';
 
@@ -14,8 +15,8 @@ router.post('/signup', async (req, res) => {
       .insert([{ name, email, password_hash: hash }])
       .select('id,name,email').single();
     if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: error.code === '23505' ? 'Email already exists' : error.message });
-    const token = jwt.sign({ id: data.id, name: data.name, email: data.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: data });
+    // Return success WITHOUT a token — force them to log in
+    res.json({ success: true, message: 'Account created! Please log in.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -32,4 +33,4 @@ router.post('/login', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-module.exports = router;
+export default router;

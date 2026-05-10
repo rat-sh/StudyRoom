@@ -4,85 +4,137 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Dashboard</title>
+<meta name="description" content="Your StudyRoom dashboard. Create rooms, schedule sessions, and study together."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/dashboard.css"/>
 </head>
 <body>
 <div class="dash-layout">
+  <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo"><span class="dot"></span> StudyRoom</div>
-    <div class="nav-item active" onclick="setPanel('home',this)"><span class="nav-icon">⌂</span> Home</div>
-    <div class="nav-item" onclick="setPanel('rooms',this)"><span class="nav-icon">◻</span> My Rooms</div>
-    <div class="nav-item" onclick="setPanel('schedule',this)"><span class="nav-icon">◷</span> Schedule</div>
-    <div class="nav-item" onclick="window.location.href='/lobby'"><span class="nav-icon">🌐</span> Public Lobby</div>
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
+      StudyRoom
+    </div>
+
+    <div class="nav-section-label">Main</div>
+    <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)">
+      <div class="nav-icon-wrap"><i data-lucide="home"></i></div> Home
+    </div>
+    <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)">
+      <div class="nav-icon-wrap"><i data-lucide="door-open"></i></div> My Rooms
+    </div>
+    <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)">
+      <div class="nav-icon-wrap"><i data-lucide="calendar"></i></div> Schedule
+    </div>
+    <div class="nav-item" id="nav-lobby" onclick="window.location.href='/lobby'">
+      <div class="nav-icon-wrap"><i data-lucide="globe"></i></div> Public Lobby
+    </div>
+
     <hr class="sidebar-sep"/>
-    <div class="nav-item" onclick="setPanel('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
+    <div class="nav-section-label">Account</div>
+    <div class="nav-item" id="nav-theme" onclick="toggleTheme()">
+      <div class="nav-icon-wrap"><i data-lucide="moon" id="theme-icon"></i></div> Toggle Theme
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="setPanel('settings',this)">
+      <div class="nav-icon-wrap"><i data-lucide="settings"></i></div> Settings
+    </div>
+
     <div class="sidebar-user" onclick="logout()">
       <div class="avatar" id="sb-avatar">?</div>
-      <div class="sidebar-user-info"><strong id="sb-name">...</strong><span>🟢 Online</span></div>
+      <div class="sidebar-user-info">
+        <strong id="sb-name">...</strong>
+        <span>● Online</span>
+      </div>
+      <span class="logout-hint">Sign out</span>
     </div>
   </aside>
+
+  <!-- MAIN -->
   <main class="main-content">
+    <!-- HOME PANEL -->
     <div class="panel active" id="panel-home">
       <div class="panel-title" id="greeting">Good day 👋</div>
-      <p class="panel-sub">Ready to study? Create a room or join one.</p>
+      <p class="panel-sub">Ready to focus? Create a room or jump into an existing one.</p>
       <div class="action-grid">
         <div class="action-card create" onclick="openCreate()">
-          <div class="card-icon">✦</div>
-          <h3>Create a room</h3>
-          <p>Start a session, get a code + PIN to share</p>
+          <div class="card-icon-wrap"><i data-lucide="sparkles"></i></div>
+          <h3>Create a Room</h3>
+          <p>Start a private session and share the code with friends</p>
         </div>
-        <div class="action-card" onclick="openJoin()">
-          <div class="card-icon">→</div>
-          <h3>Join with code</h3>
-          <p>Enter a room code and PIN to join</p>
+        <div class="action-card join" onclick="openJoin()">
+          <div class="card-icon-wrap"><i data-lucide="key"></i></div>
+          <h3>Join with Code</h3>
+          <p>Enter a room code and PIN to jump in instantly</p>
         </div>
         <div class="action-card lobby" onclick="window.location.href='/lobby'">
-          <div class="card-icon">🌐</div>
-          <h3>Public lobby</h3>
-          <p>Browse and join live public study rooms</p>
+          <div class="card-icon-wrap"><i data-lucide="globe"></i></div>
+          <h3>Public Lobby</h3>
+          <p>Browse and join live public study rooms by topic</p>
         </div>
-        <div class="action-card" onclick="openJoinLink()">
-          <div class="card-icon">🔗</div>
-          <h3>Join via link</h3>
-          <p>Paste a room invite link to join directly</p>
+        <div class="action-card via-link" onclick="openJoinLink()">
+          <div class="card-icon-wrap"><i data-lucide="link"></i></div>
+          <h3>Join via Link</h3>
+          <p>Paste an invite link to enter a room directly</p>
         </div>
       </div>
-      <div class="section-label">Recent rooms</div>
-      <div class="room-list" id="recent-rooms"><div style="font-size:13px;color:var(--hint);padding:10px 0">Loading...</div></div>
+      <div class="section-label">Recent Rooms</div>
+      <div class="room-list" id="recent-rooms">
+        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      </div>
     </div>
+
+    <!-- MY ROOMS PANEL -->
     <div class="panel" id="panel-rooms">
       <div class="panel-title">My Rooms</div>
-      <p class="panel-sub">All rooms you've created</p>
-      <div class="room-list" id="my-rooms-list"><div style="font-size:13px;color:var(--hint);padding:10px 0">Loading...</div></div>
+      <p class="panel-sub">All rooms you've created — click to rejoin</p>
+      <div class="room-list" id="my-rooms-list">
+        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      </div>
     </div>
+
+    <!-- SCHEDULE PANEL -->
     <div class="panel" id="panel-schedule">
-      <div class="panel-title">Schedule</div>
-      <p class="panel-sub">Upcoming sessions will appear here.</p>
-      <div style="font-size:13px;color:var(--hint);margin-top:1rem">📅 No sessions scheduled yet.</div>
+      <div class="schedule-header">
+        <div>
+          <div class="panel-title">Schedule</div>
+          <p class="panel-sub" style="margin-bottom:0">Plan and manage your study sessions</p>
+        </div>
+        <button class="btn-add" onclick="openScheduleModal()">＋ Add Session</button>
+      </div>
+      <div class="schedule-list" id="schedule-list"></div>
     </div>
+
+    <!-- SETTINGS PANEL -->
     <div class="panel" id="panel-settings">
       <div class="panel-title">Settings</div>
-      <p class="panel-sub">Account preferences</p>
-      <div class="field" style="max-width:300px"><label>Display name</label><input type="text" id="settings-name" readonly style="background:var(--bg2)"/></div>
-      <div class="field" style="max-width:300px"><label>Email</label><input type="email" id="settings-email" readonly style="background:var(--bg2)"/></div>
-      <button class="btn-primary" style="max-width:300px;margin-top:0.5rem" onclick="logout()">Logout</button>
+      <p class="panel-sub">Manage your account</p>
+      <div class="settings-section">
+        <h3>Account Info</h3>
+        <div class="field"><label>Display Name</label><input type="text" id="settings-name" readonly/></div>
+        <div class="field"><label>Email</label><input type="email" id="settings-email" readonly/></div>
+      </div>
+      <div class="settings-section">
+        <h3>Session</h3>
+        <button class="btn-go" style="max-width:200px;border-radius:var(--radius-sm)" onclick="logout()">Sign Out</button>
+      </div>
     </div>
   </main>
 </div>
 
+<!-- CREATE ROOM MODAL -->
 <div class="modal-overlay" id="modal-create">
   <div class="modal">
-    <h2>Create a room</h2>
-    <p class="sub">Customize and share with your study partners</p>
-    <div class="field"><label>Room name</label><input type="text" id="room-name-input" placeholder="Physics Group Study"/></div>
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="sparkles" style="width:20px;height:20px"></i> Create a Room</h2>
+    <p class="sub">Set it up and share the code with your study partners</p>
+    <div class="field"><label>Room Name</label><input type="text" id="room-name-input" placeholder="e.g. Physics Group Study"/></div>
     <div class="field"><label>Topic</label>
       <select id="room-topic">
         <option>General</option><option>Physics</option><option>Math</option>
         <option>Chemistry</option><option>Biology</option><option>History</option>
-        <option>English</option><option>Computer Science</option>
+        <option>English</option><option>Computer Science</option><option>Economics</option>
       </select>
     </div>
     <div class="toggle-row">
@@ -93,16 +145,16 @@
       <div class="token-box">
         <div>
           <div class="token-text" id="room-code-display">------</div>
-          <div class="pin-text">PIN: <span id="room-pin-display" style="font-family:var(--mono);font-weight:700;color:var(--text)">----</span></div>
+          <div class="pin-text">PIN: <span id="room-pin-display">----</span></div>
         </div>
-        <button class="copy-btn" onclick="copyCode()">Copy all</button>
+        <button class="copy-btn" onclick="copyCode()" style="display:flex;align-items:center;gap:4px"><i data-lucide="clipboard" style="width:14px;height:14px"></i> Copy</button>
       </div>
       <div class="share-link-box">
-        <span id="share-link-text">generating link...</span>
-        <button class="copy-btn" onclick="copyLink()">Copy link</button>
+        <span id="share-link-text">generating link…</span>
+        <button class="copy-btn" onclick="copyLink()" style="display:flex;align-items:center;gap:4px"><i data-lucide="link" style="width:14px;height:14px"></i> Link</button>
       </div>
     </div>
-    <p class="modal-note">⏱ Room expires in 24 hours</p>
+    <p class="modal-note"><i data-lucide="clock" style="width:14px;height:14px"></i> Room code expires in 24 hours</p>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-create')">Cancel</button>
       <button class="btn-go" id="create-btn" onclick="handleCreate()">Create Room</button>
@@ -110,27 +162,29 @@
   </div>
 </div>
 
+<!-- JOIN ROOM MODAL -->
 <div class="modal-overlay" id="modal-join">
   <div class="modal">
-    <h2>Join a room</h2>
-    <p class="sub">Enter the 6-character code and 4-digit PIN</p>
-    <div id="join-err" class="error-msg hidden"></div>
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="key" style="width:20px;height:20px"></i> Join a Room</h2>
+    <p class="sub">Enter the room code and PIN from your invite</p>
+    <div id="join-err" class="error-msg-sm hidden"></div>
     <input type="text" class="code-input" id="join-code" placeholder="ABC123" maxlength="6" oninput="this.value=this.value.toUpperCase()"/>
     <input type="text" class="pin-input" id="join-pin" placeholder="0000" maxlength="4" inputmode="numeric"/>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-join')">Cancel</button>
-      <button class="btn-go" onclick="doJoinFromDash()">Join →</button>
+      <button class="btn-go" onclick="doJoinFromDash()">Join Room →</button>
     </div>
   </div>
 </div>
 
+<!-- JOIN VIA LINK MODAL -->
 <div class="modal-overlay" id="modal-link">
   <div class="modal">
-    <h2>Join via link</h2>
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="link" style="width:20px;height:20px"></i> Join via Link</h2>
     <p class="sub">Paste the invite link you received</p>
-    <div id="link-err" class="error-msg hidden"></div>
-    <div class="field"><label>Invite link</label><input type="text" id="link-input" placeholder="http://localhost:3000/join/ABC123"/></div>
-    <div class="field"><label>Room PIN</label><input type="text" id="link-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="font-family:var(--mono);font-size:18px;letter-spacing:0.15em;text-align:center"/></div>
+    <div id="link-err" class="error-msg-sm hidden"></div>
+    <div class="field"><label>Invite Link</label><input type="text" id="link-input" placeholder="http://…/join/ABC123"/></div>
+    <div class="field"><label>Room PIN</label><input type="text" id="link-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="font-family:var(--mono);font-size:20px;letter-spacing:0.15em;text-align:center"/></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-link')">Cancel</button>
       <button class="btn-go" onclick="doJoinLink()">Join →</button>
@@ -138,8 +192,40 @@
   </div>
 </div>
 
+<!-- SCHEDULE MODAL -->
+<div class="modal-overlay" id="modal-schedule">
+  <div class="modal">
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="calendar" style="width:20px;height:20px"></i> Schedule Session</h2>
+    <p class="sub">Plan a study session in advance</p>
+    <div class="field"><label>Session Title</label><input type="text" id="sch-title" placeholder="e.g. Math Exam Prep"/></div>
+    <div class="field"><label>Topic</label>
+      <select id="sch-topic">
+        <option>General</option><option>Physics</option><option>Math</option>
+        <option>Chemistry</option><option>Biology</option><option>History</option>
+        <option>English</option><option>Computer Science</option><option>Economics</option>
+      </select>
+    </div>
+    <div class="field"><label>Date & Time</label><input type="datetime-local" id="sch-datetime"/></div>
+    <div class="field"><label>Duration (minutes)</label>
+      <select id="sch-duration">
+        <option value="25">25 min — Pomodoro</option>
+        <option value="50">50 min — Standard</option>
+        <option value="90">90 min — Deep Work</option>
+        <option value="120">2 hours</option>
+      </select>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="sch-notes" placeholder="What will you study?" style="height:70px;resize:none;border-radius:var(--radius-sm)"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-schedule')">Cancel</button>
+      <button class="btn-go" onclick="saveSchedule()">Save Session</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <script src="/core/js/api.js"></script>
 <script src="/core/js/dashboard.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

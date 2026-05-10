@@ -58,8 +58,9 @@ function startLocal() {
 
 function updateBtn() {
   const btn = document.getElementById('start-btn');
-  btn.textContent = running ? '⏸ Pause' : '▶ Start';
+  btn.innerHTML = running ? '<i data-lucide="pause" style="width:14px;height:14px;margin-right:4px;fill:currentColor"></i> Pause' : '<i data-lucide="play" style="width:14px;height:14px;margin-right:4px;fill:currentColor"></i> Start';
   btn.classList.toggle('running', running);
+  if (window.parent && window.parent.lucide) window.parent.lucide.createIcons(); else if (window.lucide) lucide.createIcons();
 }
 
 window.addEventListener('message', e => {
@@ -83,7 +84,7 @@ window.addEventListener('message', e => {
     document.getElementById('timer-display').textContent = '00:00';
     document.getElementById('ring-fill').style.strokeDashoffset = CIRCUMFERENCE;
     updateBtn();
-    if (Notification.permission === 'granted') new Notification('⏰ StudyRoom', { body: `${currentLabel} session done!` });
+    if (Notification.permission === 'granted') new Notification('StudyRoom Timer', { body: `${currentLabel} session done!` });
   }
 });
 

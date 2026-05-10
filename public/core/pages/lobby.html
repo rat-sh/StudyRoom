@@ -5,17 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Public Lobby</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/lobby.css"/>
 </head>
 <body>
 <div class="lobby-page">
   <nav class="lobby-nav">
-    <div class="lobby-logo"><span class="dot"></span> StudyRoom</div>
+    <div class="lobby-logo">
+      <div class="lobby-logo-icon"><i data-lucide="book-open"></i></div>
+      StudyRoom
+    </div>
     <div class="live-count"><div class="live-dot"></div><span id="live-count">0 rooms live</span></div>
     <div class="lobby-nav-links">
-      <a href="/join" class="nav-link">🔑 Join with Code</a>
+      <button onclick="toggleTheme()" style="background:transparent;border:none;cursor:pointer;color:var(--text);display:flex;align-items:center;margin-right:12px;padding:4px;" title="Toggle Theme">
+        <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
+      </button>
+      <a href="/join" class="nav-link"><i data-lucide="key" style="width:16px;height:16px;margin-right:4px;"></i> Join with Code</a>
       <a href="/" class="nav-link">Login</a>
       <a href="/signup" class="nav-link primary">Sign up</a>
     </div>
@@ -26,7 +32,7 @@
       <p>Browse and join live study sessions — no account needed</p>
     </div>
     <div class="lobby-filters">
-      <input type="text" class="search-box" id="search" placeholder="🔍 Search rooms..." oninput="filterRooms()"/>
+      <input type="text" class="search-box" id="search" placeholder="Search rooms..." oninput="filterRooms()"/>
       <select class="topic-filter" id="topic-filter" onchange="loadRooms()">
         <option value="All">All Topics</option>
         <option>Physics</option>
@@ -36,29 +42,39 @@
         <option>History</option>
         <option>English</option>
         <option>Computer Science</option>
+        <option>Economics</option>
         <option>General</option>
       </select>
-      <button class="refresh-btn" onclick="loadRooms()">↻ Refresh</button>
+      <button class="refresh-btn" onclick="loadRooms()"><i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Refresh</button>
     </div>
     <div class="rooms-grid" id="rooms-grid">
-      <div class="lobby-empty"><div class="empty-icon">📚</div><p>Loading rooms...</p></div>
+      <div class="lobby-empty"><div class="empty-icon"><i data-lucide="book-x"></i></div><p>Loading rooms...</p></div>
     </div>
   </div>
 </div>
+
+<!-- GUEST NAME MODAL -->
 <div class="name-modal-bg" id="name-modal">
   <div class="name-modal">
     <h2>What's your name?</h2>
-    <p>You'll join as a guest — no account needed</p>
-    <div id="modal-err" class="error-msg hidden"></div>
-    <div class="field"><label>Display name</label><input type="text" id="guest-name-input" placeholder="Rahul Das" maxlength="30"/></div>
-    <div class="modal-actions" style="display:flex;gap:8px;margin-top:0.5rem">
-      <button class="btn-secondary" style="flex:1;padding:9px;font-size:13px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:transparent;color:var(--text);cursor:pointer" onclick="closeNameModal()">Cancel</button>
-      <button class="btn-go" style="flex:1;padding:9px;font-size:13px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="confirmJoin()">Join →</button>
+    <p class="sub">You'll join as a guest — no account needed</p>
+    <div id="modal-err" class="error-msg-sm hidden"></div>
+    <div class="field">
+      <label>Display name</label>
+      <input type="text" id="guest-name-input" placeholder="Your name" maxlength="30" class="code-input" style="text-transform:none"/>
+    </div>
+    <div class="modal-actions" style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-secondary" onclick="closeNameModal()">Cancel</button>
+      <button class="btn-secondary" onclick="joinAnonymous()" title="Generate random name">Anonymous</button>
+      <button class="btn-go" onclick="confirmJoin()">Join Room →</button>
     </div>
   </div>
 </div>
+
 <div class="toast" id="toast"></div>
 <script src="/core/js/api.js"></script>
 <script src="/core/js/lobby.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

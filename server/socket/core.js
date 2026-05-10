@@ -1,9 +1,13 @@
+import whiteboardHandler from './features/whiteboard.js';
+import timerHandler from './features/timer.js';
+import reactionsHandler from './features/reactions.js';
+
 const rooms = new Map();
 
-function setupCoreHandlers(io) {
-  require('./features/whiteboard')(io, rooms);
-  require('./features/timer')(io, rooms);
-  require('./features/reactions')(io, rooms);
+export function setupCoreHandlers(io) {
+  whiteboardHandler(io, rooms);
+  timerHandler(io, rooms);
+  reactionsHandler(io, rooms);
 
   io.on('connection', (socket) => {
 
@@ -55,5 +59,3 @@ function setupCoreHandlers(io) {
     });
   });
 }
-
-module.exports = { setupCoreHandlers };

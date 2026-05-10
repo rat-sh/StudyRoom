@@ -1,11 +1,8 @@
 import express from 'express';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const supabase = require('../../supabase.js');
+import supabase from '../../supabase.js';
 
 const router = express.Router();
 
-// Get list of shared files in a room
 router.get('/:roomCode', async (req, res) => {
   try {
     const { data, error } = await supabase.storage.from('room-files').list(req.params.roomCode);
@@ -16,7 +13,6 @@ router.get('/:roomCode', async (req, res) => {
   }
 });
 
-// Generate presigned URL for upload
 router.post('/:roomCode/presigned', async (req, res) => {
   try {
     const { filename } = req.body;

@@ -1,6 +1,7 @@
-const express = require('express');
-const supabase = require('../supabase');
-const auth = require('../middleware/auth');
+import express from 'express';
+import supabase from '../supabase.js';
+import auth from '../middleware/auth.js';
+
 const router = express.Router();
 
 function genCode() {
@@ -34,7 +35,6 @@ router.post('/create', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// validate code + pin for guest join
 router.post('/validate', async (req, res) => {
   try {
     const { code, pin } = req.body;
@@ -46,7 +46,6 @@ router.post('/validate', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// join public room (no pin needed)
 router.post('/join-public', async (req, res) => {
   try {
     const { code } = req.body;
@@ -62,10 +61,10 @@ router.get('/mine', auth, async (req, res) => {
   try {
     const { data, error } = await supabase.from('rooms').select('*')
       .eq('created_by', req.user.id)
-      .order('created_at', { ascending: false }).limit(10);
+      .order('created_at', { ascending: false }).limit(20);
     if (error) return res.status(500).json({ error: error.message });
     res.json(data || []);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-module.exports = router;
+export default router;

@@ -27,3 +27,18 @@ alter table users enable row level security;
 alter table rooms enable row level security;
 create policy "service_all_users" on users for all using (true);
 create policy "service_all_rooms" on rooms for all using (true);
+
+-- socket.io feature persistence
+create table if not exists room_timers (
+  room_code text primary key references rooms(code) on delete cascade,
+  mode text default 'pomodoro',
+  status text default 'stopped',
+  time_remaining int default 1500,
+  updated_at timestamptz default now()
+);
+
+create table if not exists room_whiteboards (
+  room_code text primary key references rooms(code) on delete cascade,
+  elements jsonb default '[]'::jsonb,
+  updated_at timestamptz default now()
+);

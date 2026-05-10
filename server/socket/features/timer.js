@@ -1,5 +1,6 @@
 const timers = new Map();
-module.exports = function(io, rooms) {
+
+export default function(io, rooms) {
   io.on('connection', (socket) => {
     socket.on('timer-start', ({ roomCode, duration }) => {
       if (timers.has(roomCode)) clearInterval(timers.get(roomCode).interval);
@@ -22,4 +23,4 @@ module.exports = function(io, rooms) {
       if (timers.has(roomCode)) socket.emit('timer-sync', { endsAt: timers.get(roomCode).endsAt, running: true });
     });
   });
-};
+}
