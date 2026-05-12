@@ -58,3 +58,10 @@ function toggleTheme() {
     lucide.createIcons();
   }
 }
+
+// ── HOME NAVIGATION (Issue 5) ─────────────────────────────────────
+// Called by clicking the StudyRoom logo on any page.
+// Logged-in users → /dashboard   |   Guests/visitors → /
+function goHome() {
+  window.location.href = API.user() ? '/dashboard' : '/';
+}

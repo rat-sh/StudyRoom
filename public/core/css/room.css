@@ -56,10 +56,39 @@
   flex:none;width:50%;resize:horizontal;
   max-width:80vw;
 }
+/* ── VIDEO GRID — responsive by participant count ──
+   data-peers attribute is set by JS whenever the peer list changes.
+   1 peer  → full-screen single tile
+   2 peers → side-by-side
+   3-4     → 2×2 grid
+   5+      → auto-fill responsive wrap
+*/
 .video-grid{
   flex:1;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
   gap:8px;align-content:start;overflow-y:auto;
+  transition: grid-template-columns 0.25s ease;
+}
+/* Default / 1 user: single column, tile expands */
+.video-grid[data-peers="1"]{
+  grid-template-columns: 1fr;
+  align-content: center;
+}
+.video-grid[data-peers="1"] .video-tile {
+  aspect-ratio: 16/9;
+  max-height: 100%;
+}
+/* 2 users: 50/50 split */
+.video-grid[data-peers="2"]{
+  grid-template-columns: 1fr 1fr;
+}
+/* 3-4 users: 2×2 grid */
+.video-grid[data-peers="3"],
+.video-grid[data-peers="4"]{
+  grid-template-columns: 1fr 1fr;
+}
+/* 5+ users: responsive auto-fill */
+.video-grid[data-peers="many"]{
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 .video-tile{
   background:var(--bg2);border:1px solid var(--border);
@@ -147,14 +176,48 @@
 .ctrl-end:hover{background:var(--danger-dark);transform:scale(1.03)}
 .ctrl-sep{width:1px;height:28px;background:var(--border);flex-shrink:0;margin:0 4px}
 
+/* ── SIDEBAR RESIZE HANDLE ── */
+.sidebar-resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s;
+  z-index: 10;
+}
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 40px;
+  background: var(--border2);
+  border-radius: 3px;
+  transition: background 0.15s, height 0.15s;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: rgba(0,184,148,0.08);
+}
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:active::after {
+  background: var(--accent);
+  height: 60px;
+}
+
 /* ── SIDEBAR ── */
 .room-sidebar{
   width:260px;flex-shrink:0;
   border-left:1px solid var(--border);
   display:flex;flex-direction:column;background:var(--bg2);
   transition:width 0.2s ease;
+  min-width:180px;
+  max-width:600px;
 }
-.room-sidebar.collapsed{width:0;overflow:hidden}
+.room-sidebar.collapsed{width:0!important;overflow:hidden;min-width:0}
 .rsb-tabs{
   display:flex;border-bottom:1px solid var(--border);flex-shrink:0;
 }
@@ -214,7 +277,6 @@
 }
 .chat-msg.mine{text-align:right}
 .chat-msg::after{content:'';display:block;clear:both}
-/* Emoji in chat bubble */
 .chat-msg .msg-bubble .emoji-msg{font-size:24px;line-height:1.2}
 
 .chat-input-row{
@@ -245,6 +307,26 @@
 }
 .chat-send:hover{opacity:0.85}
 
+/* ── MUSIC BOT HINT ── */
+.chat-bot-hint {
+  font-size: 10px;
+  color: var(--hint);
+  padding: 5px 10px 6px;
+  border-top: 1px solid var(--border);
+  line-height: 1.8;
+  flex-shrink: 0;
+  background: var(--bg3);
+}
+.chat-bot-hint code {
+  background: var(--bg4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #5865F2;
+  margin: 0 1px;
+}
+
 /* ── EMOJI PICKER ── */
 .emoji-picker-popup{
   position:fixed;bottom:70px;right:268px;
@@ -269,6 +351,10 @@
   padding:10px 0;gap:4px;
   border-left:1px solid var(--border);
   background:var(--bg2);width:50px;flex-shrink:0;
+  /* Fix: must be above any overlapping panels */
+  position:relative;
+  z-index:20;
+  pointer-events:auto;
 }
 .feat-btn{
   width:36px;height:36px;border-radius:var(--radius-sm);
@@ -316,19 +402,6 @@
 .feat-close:hover{background:var(--bg3);color:var(--text)}
 .feat-panel-body{flex:1;overflow:hidden;display:flex;flex-direction:column}
 
-/* ── SIDEBAR TOGGLE BUTTON ── */
-.sidebar-toggle{
-  position:absolute;right:0;top:50%;
-  transform:translateY(-50%);
-  width:16px;height:40px;
-  background:var(--bg3);border:1px solid var(--border);
-  border-right:none;border-radius:6px 0 0 6px;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:10px;color:var(--muted);z-index:20;
-  transition:background 0.12s;
-}
-.sidebar-toggle:hover{background:var(--bg4);color:var(--text)}
-
 /* ── REACTIONS ── */
 .reaction-burst{
   position:absolute;font-size:28px;
@@ -336,7 +409,7 @@
   animation:burst 1.2s ease-out forwards;
 }
 
-/* ── SIDEBAR COLLAPSE BTN ── */
+/* ── SIDEBAR COLLAPSE BTN (legacy) ── */
 .rsb-collapse{
   width:100%;padding:8px;background:transparent;border:none;
   border-bottom:1px solid var(--border);
@@ -346,3 +419,13 @@
   gap:4px;flex-shrink:0;
 }
 .rsb-collapse:hover{background:var(--bg3);color:var(--text)}
+
+/* ── MUSIC HINT GLOW (triggered by openMusicPanel) ── */
+@keyframes musicHintPulse {
+  0%,100% { background:var(--bg3); box-shadow:none; }
+  40%      { background:rgba(88,101,242,0.15); box-shadow:0 0 0 2px rgba(88,101,242,0.3); }
+}
+.music-hint-glow {
+  animation: musicHintPulse 1.8s ease;
+  border-radius: var(--radius-xs);
+}
