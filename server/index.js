@@ -15,6 +15,7 @@ import lobbyRoutes from './routes/lobby.js';
 import fileRoutes from './routes/features/files.js';
 import timerRoutes from './routes/features/timer.js';
 import whiteboardRoutes from './routes/features/whiteboard.js';
+import musicRoutes from './routes/music.js';
 import { setupCoreHandlers } from './socket/core.js';
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/lobby', lobbyRoutes);
 app.use('/api/features/files', fileRoutes);
 app.use('/api/features/timer', timerRoutes);
 app.use('/api/features/whiteboard', whiteboardRoutes);
+app.use('/api/music', musicRoutes);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/signup.html')));

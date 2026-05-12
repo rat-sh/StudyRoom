@@ -6,7 +6,6 @@ const guestData = JSON.parse(sessionStorage.getItem('sr_guest') || 'null');
 const user = storedUser || guestData || { name: 'Guest', guest: true };
 
 if (!roomCode) window.location.href = '/';
-// If neither logged in nor guest session, redirect to login
 if (!storedUser && !guestData) {
   window.location.href = '/';
 }
@@ -46,6 +45,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('self-name').textContent = user.name;
   addToPeopleList('self', user.name, true, user.guest);
   socket.emit('join-room', { roomCode, user });
+
+  // Init music bot — also requests current state for late joiners
+  MusicBot.init(socket, roomCode);
+
   // Try media silently on load
   try { await requestMedia(true); } catch {}
 
@@ -65,7 +68,66 @@ window.addEventListener('DOMContentLoaded', async () => {
       emojiPickerOpen = false;
     }
   });
+
+  // Init resizable sidebar
+  initSidebarResize();
+
+  // Set initial grid layout (1 = just yourself)
+  updateVideoGrid();
 });
+
+// ── RESIZABLE SIDEBAR ──────────────────────────────────────────
+function initSidebarResize() {
+  const handle = document.getElementById('sidebar-resize-handle');
+  const sidebar = document.getElementById('room-sidebar');
+  if (!handle || !sidebar) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = sidebar.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startX - e.clientX; // dragging left increases width
+    const newWidth = Math.max(200, Math.min(600, startWidth + delta));
+    sidebar.style.width = newWidth + 'px';
+    sidebar.style.flex = 'none';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', e => {
+    dragging = true;
+    startX = e.touches[0].clientX;
+    startWidth = sidebar.offsetWidth;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const delta = startX - e.touches[0].clientX;
+    const newWidth = Math.max(200, Math.min(600, startWidth + delta));
+    sidebar.style.width = newWidth + 'px';
+    sidebar.style.flex = 'none';
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => { dragging = false; });
+}
 
 // ── MEDIA ──────────────────────────────────────────────────────
 async function requestMedia(silent = false) {
@@ -100,17 +162,48 @@ function toggleMic() {
 
 function toggleCam() {
   if (!localStream) { showToast('Click Allow Access first'); return; }
-  camOn = !camOn;
-  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
   const btn = document.getElementById('btn-cam');
-  btn.innerHTML = camOn ? '<i data-lucide="camera" style="width:20px;height:20px"></i>' : '<i data-lucide="camera-off" style="width:20px;height:20px"></i>';
-  btn.classList.toggle('off', !camOn);
   const vid = document.getElementById('local-video');
-  vid.classList.toggle('active', camOn);
   const tileSelf = document.getElementById('tile-self');
-  if (tileSelf) tileSelf.classList.toggle('cam-off', !camOn);
-  document.getElementById('self-avatar').style.display = camOn ? 'none' : 'flex';
-  document.getElementById('self-name').style.display = camOn ? 'none' : 'block';
+
+  if (camOn) {
+    // ── TURN OFF: stop the hardware track so the LED goes out ──
+    localStream.getVideoTracks().forEach(t => {
+      t.stop();                   // releases the camera hardware
+      localStream.removeTrack(t); // clean up from the stream object
+    });
+    camOn = false;
+    vid.srcObject = null;         // clear the video element
+    vid.classList.remove('active');
+    if (tileSelf) tileSelf.classList.add('cam-off');
+    document.getElementById('self-avatar').style.display = 'flex';
+    document.getElementById('self-name').style.display  = 'block';
+    btn.innerHTML = '<i data-lucide="camera-off" style="width:20px;height:20px"></i>';
+    btn.classList.add('off');
+  } else {
+    // ── TURN ON: request a fresh video track ──
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(newStream => {
+        const newTrack = newStream.getVideoTracks()[0];
+        localStream.addTrack(newTrack);
+        vid.srcObject = localStream;
+        vid.classList.add('active');
+        // Replace the track in every peer connection
+        replaceVideoTrack(newTrack);
+        camOn = true;
+        if (tileSelf) tileSelf.classList.remove('cam-off');
+        document.getElementById('self-avatar').style.display = 'none';
+        document.getElementById('self-name').style.display  = 'none';
+        btn.innerHTML = '<i data-lucide="camera" style="width:20px;height:20px"></i>';
+        btn.classList.remove('off');
+        socket.emit('media-state', { roomCode, video: true, audio: micOn });
+        showToast('Camera on');
+        if (window.lucide) lucide.createIcons();
+      })
+      .catch(() => showToast('Could not restart camera'));
+    return; // early return — toast + state update inside .then()
+  }
+
   socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
   showToast(camOn ? 'Camera on' : 'Camera off');
   if (window.lucide) lucide.createIcons();
@@ -183,6 +276,20 @@ async function callPeer(socketId) {
 }
 
 // ── SOCKET EVENTS ──────────────────────────────────────────────
+// ── VIDEO GRID LAYOUT ────────────────────────────────────────────
+// Counts all .video-tile elements and sets data-peers on the grid
+// so the CSS attribute selectors can apply the right column layout.
+function updateVideoGrid() {
+  const grid = document.getElementById('video-grid');
+  if (!grid) return;
+  const count = grid.querySelectorAll('.video-tile').length;
+  if      (count <= 1) grid.dataset.peers = '1';
+  else if (count === 2) grid.dataset.peers = '2';
+  else if (count === 3) grid.dataset.peers = '3';
+  else if (count === 4) grid.dataset.peers = '4';
+  else                  grid.dataset.peers = 'many';
+}
+
 socket.on('room-peers', async peersArr => {
   for (const { socketId, user: u } of peersArr) {
     peerInfo[socketId] = u;
@@ -190,6 +297,7 @@ socket.on('room-peers', async peersArr => {
     addToPeopleList(socketId, u.name, false, u.guest);
     await callPeer(socketId);
   }
+  updateVideoGrid();
 });
 
 socket.on('user-joined', ({ socketId, user: u }) => {
@@ -198,6 +306,7 @@ socket.on('user-joined', ({ socketId, user: u }) => {
   addToPeopleList(socketId, u.name, false, u.guest);
   showToast(`${u.name} joined`);
   appendSystemMessage(`${u.name} joined the room`);
+  updateVideoGrid();
 });
 
 socket.on('user-left', ({ socketId }) => {
@@ -205,6 +314,7 @@ socket.on('user-left', ({ socketId }) => {
   removePeer(socketId);
   showToast(`${name} left`);
   appendSystemMessage(`${name} left the room`);
+  updateVideoGrid();
 });
 
 socket.on('room-count', count => {
@@ -272,23 +382,19 @@ function sendChat() {
   const message = input.value.trim();
   if (!message) return;
 
-  // 🎧 CHIP COMMAND DETECTION
-  if (message.startsWith("/")) {
-    socket.emit("chip:command", {
-      raw: message,
-      roomId: roomCode   // VERY IMPORTANT
-    });
-
-    input.value = "";
-    return;
+  // Check for music bot commands first — they don't go to normal chat
+  if (message.startsWith('/')) {
+    const handled = MusicBot.parseCommand(message);
+    if (handled) {
+      input.value = '';
+      return;
+    }
   }
 
-  // normal chat
   socket.emit('chat-message', { roomCode, message });
   input.value = '';
 }
 
-// Send an emoji directly to chat (not as floating reaction)
 function sendEmojiToChat(emoji) {
   socket.emit('chat-message', { roomCode, message: emoji });
   document.getElementById('emoji-picker').classList.remove('open');
@@ -300,8 +406,6 @@ socket.on('chat-message', ({ socketId, name, message, time }) => {
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.className = 'chat-msg' + (isMe ? ' mine' : '');
-
-  // Check if message is purely emoji
   const isEmojiOnly = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\u200D)+$/u.test(message) && message.length <= 8;
   const bubbleContent = isEmojiOnly
     ? `<span class="emoji-msg">${escapeHtml(message)}</span>`
@@ -309,26 +413,10 @@ socket.on('chat-message', ({ socketId, name, message, time }) => {
   div.innerHTML = `<div class="msg-sender">${escapeHtml(isMe ? 'You' : name)}<span class="msg-time">${time}</span></div><div class="msg-bubble">${bubbleContent}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
-  // Notify chat tab if not active
   if (!isMe && !document.getElementById('rsb-chat').classList.contains('active')) {
     document.getElementById('tab-chat').style.color = 'var(--warning)';
     document.getElementById('tab-chat').style.fontWeight = '700';
   }
-});
-
-  socket.on("chip:message", ({ text }) => {
-  const msgs = document.getElementById('chat-messages');
-
-  const div = document.createElement('div');
-  div.className = 'chat-msg';
-
-  div.innerHTML = `
-    <div class="msg-sender">🤖 Chip</div>
-    <div class="msg-bubble">${text}</div>
-  `;
-
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
 });
 
 function appendSystemMessage(text) {
@@ -344,15 +432,13 @@ function appendSystemMessage(text) {
 function sendReaction(emoji) {
   socket.emit('send-reaction', { roomCode, emoji });
   spawnReaction(emoji, 'tile-self');
-  // Also send to chat so it's visible and persistent
   socket.emit('chat-message', { roomCode, message: emoji });
   document.getElementById('emoji-picker').classList.remove('open');
   emojiPickerOpen = false;
 }
 
 socket.on('reaction', ({ socketId, emoji }) => {
-  const tileId = 'tile-' + socketId;
-  spawnReaction(emoji, tileId);
+  spawnReaction(emoji, 'tile-' + socketId);
 });
 
 socket.on('hand-raised', ({ socketId, name }) => {
@@ -369,7 +455,6 @@ function spawnReaction(emoji, tileId) {
   span.style.left = (Math.random() * 50 + 25) + '%';
   span.style.bottom = '20%';
   tile.appendChild(span);
-  // Keep reaction visible for 1.2s then remove
   setTimeout(() => span.remove(), 1200);
 }
 
@@ -383,9 +468,13 @@ function toggleEmojiPicker() {
 function toggleSidebar() {
   sidebarVisible = !sidebarVisible;
   const sidebar = document.getElementById('room-sidebar');
+  const handle = document.getElementById('sidebar-resize-handle');
   sidebar.classList.toggle('collapsed', !sidebarVisible);
+  if (handle) handle.style.display = sidebarVisible ? '' : 'none';
   const btn = document.getElementById('feat-collapse-sidebar');
-  btn.innerHTML = sidebarVisible ? '<i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Hide sidebar</span>' : '<i data-lucide="chevron-left" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Show sidebar</span>';
+  btn.innerHTML = sidebarVisible
+    ? '<i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Hide sidebar</span>'
+    : '<i data-lucide="chevron-left" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Show sidebar</span>';
   if (window.lucide) lucide.createIcons();
 }
 
@@ -395,7 +484,6 @@ function setTab(tab) {
   document.querySelectorAll('.rsb-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('rsb-' + tab).classList.add('active');
-  // Reset notification indicator
   document.getElementById('tab-' + tab).style.color = '';
   document.getElementById('tab-' + tab).style.fontWeight = '';
   if (tab === 'chat') {
@@ -413,9 +501,42 @@ const FEATURES = {
   files:      { title: '📁 File Sharing', src: '/features/files/index.html' }
 };
 
+// ── MUSIC PANEL SHORTCUT ───────────────────────────────────────
+// Opens the Chat tab (where music commands live) and highlights
+// the music-bot-hint strip so users know where to type /play.
+function openMusicPanel() {
+  // Make sure the sidebar is visible
+  if (!sidebarVisible) toggleSidebar();
+
+  // Switch to the chat tab
+  setTab('chat');
+
+  // Highlight the music hint strip briefly
+  const hint = document.querySelector('.chat-bot-hint');
+  if (hint) {
+    hint.classList.add('music-hint-glow');
+    setTimeout(() => hint.classList.remove('music-hint-glow'), 1800);
+  }
+
+  // Focus the chat input and pre-fill /play for convenience
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.focus();
+    if (!input.value) input.value = '/play ';
+    // Put cursor at end
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  // Mark the music button active
+  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('feat-music')?.classList.add('active');
+
+  showToast('🎵 Type /play <song name> and press Enter');
+}
+
 function toggleFeature(name) {
   const wrap = document.getElementById('feat-panel-wrap');
-  const videoArea = document.getElementById('video-area');
+  const videoAreaEl = document.getElementById('video-area');
   const btnId = name === 'whiteboard' ? 'feat-wb' : 'feat-' + name;
   const btn = document.getElementById(btnId);
   if (activeFeature === name) { closeFeature(); return; }
@@ -427,7 +548,7 @@ function toggleFeature(name) {
   document.getElementById('feat-panel-body').innerHTML =
     `<iframe src="${f.src}?room=${roomCode}" style="width:100%;height:100%;border:none;flex:1" allow="camera;microphone"></iframe>`;
   wrap.classList.add('open');
-  videoArea.classList.add('feat-open');
+  videoAreaEl.classList.add('feat-open');
 }
 
 function closeFeature() {
@@ -438,7 +559,7 @@ function closeFeature() {
   document.getElementById('feat-panel-body').innerHTML = '';
 }
 
-// postMessage bridge — features talk to socket through room
+// postMessage bridge
 window.addEventListener('message', e => {
   const { type, data } = e.data || {};
   if (!type) return;
@@ -531,65 +652,3 @@ function getCursorColor(socketId) {
   }
   return peerColors[socketId];
 }
-let player;
-let playerReady = false;
-let pendingState = null; 
-window.onYouTubeIframeAPIReady = function () {
-  player = new YT.Player("yt-player", {
-    height: "200",   // 👈 make visible for testing
-    width: "300",
-    videoId: "",
-    playerVars: { autoplay: 1 },
-    events: {
-      onReady: (event) => {
-  console.log("✅ Player Ready");
-  playerReady = true;
-  event.target.unMute();
-  event.target.setVolume(100);
-
-  if (pendingState) {
-    console.log("▶️ Playing pending song...");
-    playSong(pendingState);
-    pendingState = null;
-  }
-}
-    }
-  });
-};
-socket.on("chip:state", (state) => {
-  console.log("STATE:", state);
-  if (!state.currentSong) return;
-
-  if (!playerReady) {
-    console.log("⏳ Player not ready, saving...");
-    pendingState = state;
-    return;
-  }
-
-  playSong(state);
-});
-
-function playSong(state) {
-  const videoId = state.currentSong.videoId;
-  console.log("🎥 VIDEO ID:", videoId);
-  if (!videoId) return;
-
-  player.loadVideoById(videoId);
-
-  setTimeout(() => {
-    player.unMute();
-    player.setVolume(100);
-    if (state.isPlaying) {
-      player.playVideo();
-      console.log("▶️ Playing now");
-    } else {
-      player.pauseVideo();
-    }
-  }, 1000);
-}
-document.addEventListener("click", () => {
-  if (player) {
-    player.playVideo();
-    console.log("🔓 Audio unlocked");
-  }
-}, { once: true });
