@@ -1,7 +1,77 @@
 let allRooms = [];
 let selectedCode = null;
 
-window.addEventListener('DOMContentLoaded', loadRooms);
+// ── GUEST IDENTITY (Issue 4) ──────────────────────────────────────
+// Adjectives + animals produce names like "CuriousTiger42"
+const GUEST_ADJS  = ['Curious','Swift','Silent','Brave','Mighty','Bright','Calm','Bold','Sharp','Keen','Witty','Gentle','Lucky','Vivid','Zesty'];
+const GUEST_NOUNS = ['Tiger','Panda','Fox','Owl','Wolf','Hawk','Bear','Lion','Eagle','Koala','Lynx','Deer','Raven','Orca','Gecko'];
+// Palette of avatar background colors (matches the app's vibe)
+const AVATAR_COLORS = ['#00B894','#4ECDC4','#5865F2','#FFA502','#FF6B6B','#A29BFE','#FD79A8','#00CEC9','#6C5CE7','#FDCB6E'];
+
+function generateGuestName() {
+  const adj  = GUEST_ADJS [Math.floor(Math.random() * GUEST_ADJS.length)];
+  const noun = GUEST_NOUNS[Math.floor(Math.random() * GUEST_NOUNS.length)];
+  const num  = Math.floor(Math.random() * 90 + 10); // 10-99
+  return `${adj}${noun}${num}`;
+}
+
+function getAvatarColor(name) {
+  // Deterministic color from name so it stays consistent across renders
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function initGuestIdentity() {
+  const loggedUser = window.API?.user();
+
+  if (loggedUser) {
+    // ── LOGGED-IN STATE ──────────────────────────────────────────
+    document.getElementById('logged-identity').style.display = 'flex';
+    document.getElementById('auth-links').style.display      = 'none';
+    document.getElementById('guest-identity').style.display  = 'none';
+
+    const initStr = initials(loggedUser.name);
+    const color   = getAvatarColor(loggedUser.name);
+    const avEl    = document.getElementById('logged-nav-avatar');
+    avEl.textContent        = initStr;
+    avEl.style.background   = color;
+    document.getElementById('logged-nav-name').textContent = loggedUser.name;
+
+  } else {
+    // ── GUEST STATE ──────────────────────────────────────────────
+    // Persist the name for this browser session so it survives refreshes
+    let guestName = sessionStorage.getItem('sr_guest_display_name');
+    if (!guestName) {
+      guestName = generateGuestName();
+      sessionStorage.setItem('sr_guest_display_name', guestName);
+    }
+
+    document.getElementById('guest-identity').style.display  = 'flex';
+    document.getElementById('auth-links').style.display      = 'flex';
+    document.getElementById('logged-identity').style.display = 'none';
+
+    const color = getAvatarColor(guestName);
+    const avEl  = document.getElementById('guest-nav-avatar');
+    avEl.textContent        = initials(guestName);
+    avEl.style.background   = color;
+    document.getElementById('guest-nav-name').textContent = guestName;
+
+    // Pre-fill the join modal's name input so guests don't have to type
+    const nameInput = document.getElementById('guest-name-input');
+    if (nameInput && !nameInput.value) nameInput.value = guestName;
+  }
+}
+
+// ── HOME NAVIGATION (Issue 5) ─────────────────────────────────────
+function goHome() {
+  window.location.href = window.API?.user() ? '/dashboard' : '/';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initGuestIdentity();
+  loadRooms();
+});
 
 async function loadRooms() {
   const topic = document.getElementById('topic-filter').value;

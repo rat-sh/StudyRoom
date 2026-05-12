@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/room.css"/>
+<link rel="stylesheet" href="/features/music/music-bot.css"/>
 </head>
 <body>
 <div class="room-page" id="room-page">
@@ -65,13 +66,19 @@
       <div class="feat-btn" id="feat-files" onclick="toggleFeature('files')" title="Files">
         <i data-lucide="folder" style="width:20px;height:20px"></i><span class="feat-tooltip">Files</span>
       </div>
+      <div class="feat-btn" id="feat-music" onclick="openMusicPanel()" title="Music Bot">
+        <i data-lucide="music" style="width:20px;height:20px"></i><span class="feat-tooltip">Music Bot</span>
+      </div>
       <div style="flex:1"></div>
       <div class="feat-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">
         <i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Toggle sidebar</span>
       </div>
     </div>
 
-    <!-- RIGHT SIDEBAR -->
+    <!-- RESIZE HANDLE -->
+    <div class="sidebar-resize-handle" id="sidebar-resize-handle" title="Drag to resize"></div>
+
+    <!-- RIGHT SIDEBAR (resizable) -->
     <div class="room-sidebar" id="room-sidebar">
       <div class="rsb-tabs">
         <div class="rsb-tab active" id="tab-people" onclick="setTab('people')"><i data-lucide="users" style="width:14px;height:14px"></i> People</div>
@@ -89,8 +96,12 @@
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-row">
             <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
-            <input type="text" class="chat-input" id="chat-input" placeholder="Type a message…" maxlength="300"/>
+            <input type="text" class="chat-input" id="chat-input" placeholder="Type a message or /play <song>…" maxlength="300"/>
             <button class="chat-send" onclick="sendChat()" title="Send"><i data-lucide="arrow-up" style="width:16px;height:16px"></i></button>
+          </div>
+          <!-- Music bot hint -->
+          <div class="chat-bot-hint">
+            🎵 Music commands: <code>/play</code> <code>/pause</code> <code>/resume</code> <code>/skip</code> <code>/queue</code> <code>/stop</code>
           </div>
         </div>
       </div>
@@ -134,8 +145,11 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="yt-player" style="display:none;"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="/features/music/music-bot.js"></script>
 <script src="/core/js/room.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>lucide.createIcons();</script>
