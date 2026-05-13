@@ -4,39 +4,51 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Join Room</title>
+<script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
-<link rel="stylesheet" href="/core/css/auth.css"/>
+<style>
+  html,body{height:100%;display:flex;align-items:center;justify-content:center}
+  .join-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;width:100%;max-width:380px;box-shadow:var(--shadow)}
+  .join-logo{display:flex;align-items:center;gap:10px;margin-bottom:1.5rem;font-size:1rem;font-weight:700;color:var(--text)}
+  .join-logo-icon{width:34px;height:34px;background:var(--accent);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;font-size:1rem;color:#fff}
+  h1{font-size:1.35rem;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:1.25rem}
+  .field{margin-bottom:1rem}
+  .field label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:5px}
+  .err{background:rgba(229,62,62,.08);color:var(--danger);border:1px solid rgba(229,62,62,.2);border-radius:var(--radius-xs);padding:8px 12px;font-size:12px;margin-bottom:10px;display:none}
+  .err.show{display:block}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--hint);font-size:12px;margin:1rem 0}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+  .btn-lobby{width:100%;padding:10px;background:var(--bg3);color:var(--text2);border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;transition:background .12s}
+  .btn-lobby:hover{background:var(--bg4)}
+  .join-back{text-align:center;margin-top:1rem;font-size:13px}
+  .join-back a{color:var(--accent);font-weight:500}
+  .theme-btn{position:fixed;top:1rem;right:1rem;background:var(--bg2);border:1px solid var(--border);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;box-shadow:var(--shadow)}
+</style>
 </head>
 <body>
-<div class="auth-page">
-  <button onclick="toggleTheme()" style="position:absolute;top:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:50%;width:40px;height:40px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);" title="Toggle Theme">
-    <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
-  </button>
-  <div class="auth-card">
-    <div class="auth-logo">
-      <div class="auth-logo-icon"><i data-lucide="book-open"></i></div>
-      StudyRoom
-    </div>
-    <h1>Join a room</h1>
-    <p class="sub">Enter the room code and PIN to join</p>
-    <div id="err" class="error-msg hidden"><i data-lucide="alert-circle" style="width:16px;height:16px"></i><span id="err-text" style="margin-left:4px"></span></div>
-    <div class="field"><label>Your name</label><input type="text" id="guestName" placeholder="Your name"/></div>
-    <div class="field"><label>Room code</label><input type="text" id="code" placeholder="ABC123" maxlength="6" style="font-family:var(--mono);font-size:18px;letter-spacing:0.12em;font-weight:700;text-transform:uppercase;text-align:center"/></div>
-    <div class="field"><label>Room PIN</label><input type="text" id="pin" placeholder="0000" maxlength="4" style="font-family:var(--mono);font-size:22px;letter-spacing:0.2em;font-weight:700;text-align:center" inputmode="numeric"/></div>
-    <button class="btn-primary" id="btn" onclick="doJoin()">Join Room →</button>
-    <div class="auth-divider"><span>or</span></div>
-    <button class="btn-outline" onclick="window.location.href='/lobby'" style="margin-bottom:8px">
-      <i data-lucide="globe" style="width:16px;height:16px"></i> Browse Public Rooms
-    </button>
-    <div class="auth-switch"><a href="/">← Back to login</a></div>
-  </div>
+<button class="theme-btn" id="theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose theme">🎨</button>
+
+<div class="join-card">
+  <div class="join-logo"><div class="join-logo-icon">📚</div>StudyRoom</div>
+  <h1>Join a room</h1>
+  <p class="sub">Enter the room code and PIN to join as a guest</p>
+  <div class="err" id="err"></div>
+  <div class="field"><label for="guestName">Your name</label><input type="text" id="guestName" placeholder="Your display name" autocomplete="name"/></div>
+  <div class="field"><label for="code">Room code</label><input type="text" id="code" placeholder="ABC123" maxlength="6" oninput="this.value=this.value.toUpperCase()" style="font-size:1.2rem;letter-spacing:.12em;font-weight:700;text-align:center"/></div>
+  <div class="field"><label for="pin">Room PIN</label><input type="text" id="pin" placeholder="0000" maxlength="4" inputmode="numeric" style="font-size:1.3rem;letter-spacing:.2em;font-weight:700;text-align:center"/></div>
+  <button class="btn-go" id="btn" onclick="doJoin()" style="margin-bottom:0">Join Room →</button>
+  <div class="divider">or</div>
+  <button class="btn-lobby" onclick="window.location.href='/lobby'">🌐 Browse Public Rooms</button>
+  <div class="join-back"><a href="/login">← Back to sign in</a></div>
 </div>
+
 <div class="toast" id="toast"></div>
 <script src="/core/js/api.js"></script>
+<script src="/core/js/theme.js"></script>
 <script src="/core/js/join.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
 </body>
 </html>

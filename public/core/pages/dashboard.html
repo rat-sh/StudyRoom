@@ -5,93 +5,224 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Dashboard</title>
 <meta name="description" content="Your StudyRoom dashboard. Create rooms, schedule sessions, and study together."/>
+<script>
+  (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
+<link rel="stylesheet" href="/core/css/components.css"/>
 <link rel="stylesheet" href="/core/css/dashboard.css"/>
 </head>
 <body>
 <div class="dash-layout">
+
   <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
-      StudyRoom
+      <div class="sidebar-logo-icon">📚</div>
+      <span>StudyRoom</span>
     </div>
 
-    <div class="nav-section-label">Main</div>
-    <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)">
-      <div class="nav-icon-wrap"><i data-lucide="home"></i></div> Home
-    </div>
-    <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)">
-      <div class="nav-icon-wrap"><i data-lucide="door-open"></i></div> My Rooms
-    </div>
-    <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)">
-      <div class="nav-icon-wrap"><i data-lucide="calendar"></i></div> Schedule
-    </div>
-    <div class="nav-item" id="nav-lobby" onclick="window.location.href='/lobby'">
-      <div class="nav-icon-wrap"><i data-lucide="globe"></i></div> Public Lobby
-    </div>
-
-    <hr class="sidebar-sep"/>
-    <div class="nav-section-label">Account</div>
-    <div class="nav-item" id="nav-theme" onclick="toggleTheme()">
-      <div class="nav-icon-wrap"><i data-lucide="moon" id="theme-icon"></i></div> Toggle Theme
-    </div>
-    <div class="nav-item" id="nav-settings" onclick="setPanel('settings',this)">
-      <div class="nav-icon-wrap"><i data-lucide="settings"></i></div> Settings
-    </div>
-
-    <div class="sidebar-user" onclick="logout()">
-      <div class="avatar" id="sb-avatar">?</div>
-      <div class="sidebar-user-info">
-        <strong id="sb-name">...</strong>
-        <span>● Online</span>
+    <div class="sidebar-body">
+      <!-- MAIN -->
+      <div class="sidebar-section">
+        <div class="nav-section-label" onclick="toggleSection('main')" id="sec-main">
+          Main
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="section-items" id="items-main">
+          <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)">
+            <div class="nav-icon-wrap">🏠</div>
+            <span class="nav-label">Home</span>
+          </div>
+          <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)">
+            <div class="nav-icon-wrap">🚪</div>
+            <span class="nav-label">My Rooms</span>
+          </div>
+          <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)">
+            <div class="nav-icon-wrap">📅</div>
+            <span class="nav-label">Schedule</span>
+          </div>
+        </div>
       </div>
-      <span class="logout-hint">Sign out</span>
+
+      <!-- DISCOVER -->
+      <div class="sidebar-section">
+        <div class="nav-section-label" onclick="toggleSection('discover')" id="sec-discover">
+          Discover
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="section-items" id="items-discover">
+          <a class="nav-item" href="/lobby">
+            <div class="nav-icon-wrap">🌐</div>
+            <span class="nav-label">Public Lobby</span>
+          </a>
+          <div class="nav-item" onclick="setPanel('rooms',document.getElementById('nav-rooms'))">
+            <div class="nav-icon-wrap">🔍</div>
+            <span class="nav-label">Browse Rooms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SOCIAL -->
+      <div class="sidebar-section">
+        <div class="nav-section-label" onclick="toggleSection('social')" id="sec-social">
+          Social
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="section-items" id="items-social">
+          <div class="nav-item" onclick="showToast('Friends feature coming soon!')">
+            <div class="nav-icon-wrap">👥</div>
+            <span class="nav-label">Friends</span>
+            <span class="nav-badge">0</span>
+          </div>
+          <div class="nav-item" onclick="showToast('Friend requests coming soon!')">
+            <div class="nav-icon-wrap">✉️</div>
+            <span class="nav-label">Friend Requests</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- GAME LOBBY -->
+      <div class="sidebar-section">
+        <div class="nav-section-label" onclick="toggleSection('games')" id="sec-games">
+          Game Lobby
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="section-items" id="items-games">
+          <div class="nav-item" onclick="showToast('Chess coming soon!')">
+            <div class="nav-icon-wrap">♟️</div>
+            <span class="nav-label">Chess</span>
+          </div>
+          <div class="nav-item" onclick="showToast('Sudoku coming soon!')">
+            <div class="nav-icon-wrap">🔢</div>
+            <span class="nav-label">Sudoku</span>
+          </div>
+          <div class="nav-item" onclick="showToast('Tic-tac-toe coming soon!')">
+            <div class="nav-icon-wrap">⭕</div>
+            <span class="nav-label">Tic-tac-toe</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOOLS -->
+      <div class="sidebar-section">
+        <div class="nav-section-label" onclick="toggleSection('tools')" id="sec-tools">
+          Tools
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="section-items" id="items-tools">
+          <div class="nav-item" onclick="setPanel('todo', this)">
+            <div class="nav-icon-wrap">✅</div>
+            <span class="nav-label">Todo List</span>
+          </div>
+          <div class="nav-item" onclick="showToast('Open a room to use Shared Notes!')">
+            <div class="nav-icon-wrap">📝</div>
+            <span class="nav-label">Shared Notes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR FOOTER -->
+    <div class="sidebar-footer">
+      <button class="nav-item" id="theme-picker-btn" onclick="toggleThemePicker()" style="width:100%;border:none" aria-label="Choose theme">
+        <div class="nav-icon-wrap">🎨</div>
+        <span class="nav-label">Theme</span>
+      </button>
+      <div class="sidebar-user" onclick="logout()" title="Sign out" role="button" tabindex="0" aria-label="Sign out">
+        <div class="avatar" id="sb-avatar">?</div>
+        <div class="sidebar-user-info">
+          <strong id="sb-name">Loading…</strong>
+          <span>● Online</span>
+        </div>
+        <span class="logout-hint">Sign out</span>
+      </div>
     </div>
   </aside>
 
-  <!-- MAIN -->
+  <!-- MAIN CONTENT -->
   <main class="main-content">
+
     <!-- HOME PANEL -->
     <div class="panel active" id="panel-home">
       <div class="panel-title" id="greeting">Good day 👋</div>
       <p class="panel-sub">Ready to focus? Create a room or jump into an existing one.</p>
+
+      <!-- PROMO CARD -->
+      <div class="promo-card" id="promo-card">
+        <div class="promo-slides" id="promo-slides">
+          <div class="promo-slide" id="promo-0">
+            <h4>🎵 Study with music</h4>
+            <p>Chip music bot — type /play in any room to queue tracks for everyone.</p>
+          </div>
+          <div class="promo-slide" id="promo-1">
+            <h4>✏️ Collaborate live</h4>
+            <p>Whiteboard, shared notes, timer, and file sharing in every room.</p>
+          </div>
+          <div class="promo-slide" id="promo-2">
+            <h4>🎮 Take a break</h4>
+            <p>Game lobby with Chess, Sudoku, and Tic-tac-toe — study smart, play harder.</p>
+          </div>
+          <div class="promo-slide" id="promo-3">
+            <h4>📅 Stay on track</h4>
+            <p>Schedule sessions and get notified before they start.</p>
+          </div>
+        </div>
+        <div class="promo-dots" id="promo-dots">
+          <button class="promo-dot active" onclick="gotoSlide(0)" aria-label="Slide 1"></button>
+          <button class="promo-dot" onclick="gotoSlide(1)" aria-label="Slide 2"></button>
+          <button class="promo-dot" onclick="gotoSlide(2)" aria-label="Slide 3"></button>
+          <button class="promo-dot" onclick="gotoSlide(3)" aria-label="Slide 4"></button>
+        </div>
+      </div>
+
+      <!-- STATS WIDGET -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card"><div class="stat-value skeleton" id="stat-week" style="height:28px;width:60px;margin:0 auto 4px">—</div><div class="stat-label">hrs this week</div></div>
+        <div class="stat-card"><div class="stat-value skeleton" id="stat-sessions" style="height:28px;width:40px;margin:0 auto 4px">—</div><div class="stat-label">total sessions</div></div>
+        <div class="stat-card"><div class="stat-value skeleton" id="stat-longest" style="height:28px;width:60px;margin:0 auto 4px">—</div><div class="stat-label">longest session</div></div>
+      </div>
+
+      <!-- ACTION GRID -->
       <div class="action-grid">
-        <div class="action-card create" onclick="openCreate()">
-          <div class="card-icon-wrap"><i data-lucide="sparkles"></i></div>
+        <div class="action-card create" onclick="openCreate()" role="button" tabindex="0">
+          <div class="card-icon-wrap">✨</div>
           <h3>Create a Room</h3>
           <p>Start a private session and share the code with friends</p>
         </div>
-        <div class="action-card join" onclick="openJoin()">
-          <div class="card-icon-wrap"><i data-lucide="key"></i></div>
+        <div class="action-card join" onclick="openJoin()" role="button" tabindex="0">
+          <div class="card-icon-wrap">🔑</div>
           <h3>Join with Code</h3>
           <p>Enter a room code and PIN to jump in instantly</p>
         </div>
-        <div class="action-card lobby" onclick="window.location.href='/lobby'">
-          <div class="card-icon-wrap"><i data-lucide="globe"></i></div>
+        <div class="action-card lobby" onclick="window.location.href='/lobby'" role="button" tabindex="0">
+          <div class="card-icon-wrap">🌐</div>
           <h3>Public Lobby</h3>
           <p>Browse and join live public study rooms by topic</p>
         </div>
-        <div class="action-card via-link" onclick="openJoinLink()">
-          <div class="card-icon-wrap"><i data-lucide="link"></i></div>
+        <div class="action-card via-link" onclick="openJoinLink()" role="button" tabindex="0">
+          <div class="card-icon-wrap">🔗</div>
           <h3>Join via Link</h3>
           <p>Paste an invite link to enter a room directly</p>
         </div>
       </div>
+
       <div class="section-label">Recent Rooms</div>
-      <div class="room-list" id="recent-rooms">
-        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      <div id="recent-rooms">
+        <div class="skeleton" style="height:60px;margin-bottom:8px;border-radius:var(--radius)"></div>
+        <div class="skeleton" style="height:60px;margin-bottom:8px;border-radius:var(--radius)"></div>
       </div>
     </div>
 
     <!-- MY ROOMS PANEL -->
     <div class="panel" id="panel-rooms">
       <div class="panel-title">My Rooms</div>
-      <p class="panel-sub">All rooms you've created — click to rejoin</p>
-      <div class="room-list" id="my-rooms-list">
-        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      <p class="panel-sub">All rooms you've created — click to rejoin or manage</p>
+      <div id="my-rooms-list">
+        <div class="skeleton" style="height:60px;margin-bottom:8px;border-radius:var(--radius)"></div>
       </div>
     </div>
 
@@ -102,35 +233,32 @@
           <div class="panel-title">Schedule</div>
           <p class="panel-sub" style="margin-bottom:0">Plan and manage your study sessions</p>
         </div>
-        <button class="btn-add" onclick="openScheduleModal()">＋ Add Session</button>
+        <button class="btn-go" style="width:auto;padding:9px 18px" onclick="openScheduleModal()">＋ Add Session</button>
       </div>
       <div class="schedule-list" id="schedule-list"></div>
     </div>
 
-    <!-- SETTINGS PANEL -->
-    <div class="panel" id="panel-settings">
-      <div class="panel-title">Settings</div>
-      <p class="panel-sub">Manage your account</p>
-      <div class="settings-section">
-        <h3>Account Info</h3>
-        <div class="field"><label>Display Name</label><input type="text" id="settings-name" readonly/></div>
-        <div class="field"><label>Email</label><input type="email" id="settings-email" readonly/></div>
+    <!-- TODO PANEL -->
+    <div class="panel" id="panel-todo">
+      <div class="panel-title">Todo List</div>
+      <p class="panel-sub">Your personal task list — check off as you go</p>
+      <div class="todo-input-row">
+        <input type="text" id="todo-input" placeholder="Add a task…" maxlength="200" style="flex:1" onkeydown="if(event.key==='Enter')addTodo()"/>
+        <button class="btn-go" style="width:auto;padding:9px 18px" onclick="addTodo()">Add</button>
       </div>
-      <div class="settings-section">
-        <h3>Session</h3>
-        <button class="btn-go" style="max-width:200px;border-radius:var(--radius-sm)" onclick="logout()">Sign Out</button>
-      </div>
+      <div id="todo-list" style="margin-top:12px"></div>
     </div>
+
   </main>
 </div>
 
 <!-- CREATE ROOM MODAL -->
 <div class="modal-overlay" id="modal-create">
   <div class="modal">
-    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="sparkles" style="width:20px;height:20px"></i> Create a Room</h2>
+    <h2>✨ Create a Room</h2>
     <p class="sub">Set it up and share the code with your study partners</p>
-    <div class="field"><label>Room Name</label><input type="text" id="room-name-input" placeholder="e.g. Physics Group Study"/></div>
-    <div class="field"><label>Topic</label>
+    <div class="field"><label for="room-name-input">Room Name</label><input type="text" id="room-name-input" placeholder="e.g. Physics Group Study"/></div>
+    <div class="field"><label for="room-topic">Topic</label>
       <select id="room-topic">
         <option>General</option><option>Physics</option><option>Math</option>
         <option>Chemistry</option><option>Biology</option><option>History</option>
@@ -138,8 +266,12 @@
       </select>
     </div>
     <div class="toggle-row">
-      <label>Make room public (visible in lobby)</label>
+      <label for="room-public">Make room public (visible in lobby)</label>
       <label class="toggle"><input type="checkbox" id="room-public"/><span class="toggle-slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <label for="room-authorized">Require host approval to join</label>
+      <label class="toggle"><input type="checkbox" id="room-authorized"/><span class="toggle-slider"></span></label>
     </div>
     <div id="code-section" class="hidden">
       <div class="token-box">
@@ -147,14 +279,14 @@
           <div class="token-text" id="room-code-display">------</div>
           <div class="pin-text">PIN: <span id="room-pin-display">----</span></div>
         </div>
-        <button class="copy-btn" onclick="copyCode()" style="display:flex;align-items:center;gap:4px"><i data-lucide="clipboard" style="width:14px;height:14px"></i> Copy</button>
+        <button class="copy-btn" onclick="copyCode()">📋 Copy</button>
       </div>
       <div class="share-link-box">
         <span id="share-link-text">generating link…</span>
-        <button class="copy-btn" onclick="copyLink()" style="display:flex;align-items:center;gap:4px"><i data-lucide="link" style="width:14px;height:14px"></i> Link</button>
+        <button class="copy-btn" onclick="copyLink()">🔗 Link</button>
       </div>
     </div>
-    <p class="modal-note"><i data-lucide="clock" style="width:14px;height:14px"></i> Room code expires in 24 hours</p>
+    <p class="modal-note">⏱ Room code expires in 24 hours</p>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-create')">Cancel</button>
       <button class="btn-go" id="create-btn" onclick="handleCreate()">Create Room</button>
@@ -165,11 +297,11 @@
 <!-- JOIN ROOM MODAL -->
 <div class="modal-overlay" id="modal-join">
   <div class="modal">
-    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="key" style="width:20px;height:20px"></i> Join a Room</h2>
+    <h2>🔑 Join a Room</h2>
     <p class="sub">Enter the room code and PIN from your invite</p>
     <div id="join-err" class="error-msg-sm hidden"></div>
-    <input type="text" class="code-input" id="join-code" placeholder="ABC123" maxlength="6" oninput="this.value=this.value.toUpperCase()"/>
-    <input type="text" class="pin-input" id="join-pin" placeholder="0000" maxlength="4" inputmode="numeric"/>
+    <input type="text" id="join-code" placeholder="ABC123" maxlength="6" oninput="this.value=this.value.toUpperCase()" style="text-align:center;font-size:1.3rem;letter-spacing:0.15em;font-weight:700;margin-bottom:10px"/>
+    <input type="text" id="join-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="text-align:center;font-size:1.3rem;letter-spacing:0.15em;font-weight:700"/>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-join')">Cancel</button>
       <button class="btn-go" onclick="doJoinFromDash()">Join Room →</button>
@@ -180,11 +312,11 @@
 <!-- JOIN VIA LINK MODAL -->
 <div class="modal-overlay" id="modal-link">
   <div class="modal">
-    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="link" style="width:20px;height:20px"></i> Join via Link</h2>
+    <h2>🔗 Join via Link</h2>
     <p class="sub">Paste the invite link you received</p>
     <div id="link-err" class="error-msg-sm hidden"></div>
-    <div class="field"><label>Invite Link</label><input type="text" id="link-input" placeholder="http://…/join/ABC123"/></div>
-    <div class="field"><label>Room PIN</label><input type="text" id="link-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="font-family:var(--mono);font-size:20px;letter-spacing:0.15em;text-align:center"/></div>
+    <div class="field"><label for="link-input">Invite Link</label><input type="text" id="link-input" placeholder="https://…/join/ABC123"/></div>
+    <div class="field"><label for="link-pin">Room PIN</label><input type="text" id="link-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="text-align:center;font-size:1.3rem;letter-spacing:0.15em"/></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-link')">Cancel</button>
       <button class="btn-go" onclick="doJoinLink()">Join →</button>
@@ -195,18 +327,18 @@
 <!-- SCHEDULE MODAL -->
 <div class="modal-overlay" id="modal-schedule">
   <div class="modal">
-    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="calendar" style="width:20px;height:20px"></i> Schedule Session</h2>
+    <h2>📅 Schedule Session</h2>
     <p class="sub">Plan a study session in advance</p>
-    <div class="field"><label>Session Title</label><input type="text" id="sch-title" placeholder="e.g. Math Exam Prep"/></div>
-    <div class="field"><label>Topic</label>
+    <div class="field"><label for="sch-title">Session Title</label><input type="text" id="sch-title" placeholder="e.g. Math Exam Prep"/></div>
+    <div class="field"><label for="sch-topic">Topic</label>
       <select id="sch-topic">
         <option>General</option><option>Physics</option><option>Math</option>
         <option>Chemistry</option><option>Biology</option><option>History</option>
         <option>English</option><option>Computer Science</option><option>Economics</option>
       </select>
     </div>
-    <div class="field"><label>Date & Time</label><input type="datetime-local" id="sch-datetime"/></div>
-    <div class="field"><label>Duration (minutes)</label>
+    <div class="field"><label for="sch-datetime">Date &amp; Time</label><input type="datetime-local" id="sch-datetime"/></div>
+    <div class="field"><label for="sch-duration">Duration</label>
       <select id="sch-duration">
         <option value="25">25 min — Pomodoro</option>
         <option value="50">50 min — Standard</option>
@@ -214,7 +346,7 @@
         <option value="120">2 hours</option>
       </select>
     </div>
-    <div class="field"><label>Notes (optional)</label><textarea id="sch-notes" placeholder="What will you study?" style="height:70px;resize:none;border-radius:var(--radius-sm)"></textarea></div>
+    <div class="field"><label for="sch-notes">Notes (optional)</label><textarea id="sch-notes" placeholder="What will you study?" style="height:70px;resize:none"></textarea></div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-schedule')">Cancel</button>
       <button class="btn-go" onclick="saveSchedule()">Save Session</button>
@@ -222,10 +354,22 @@
   </div>
 </div>
 
+<!-- DELETE ROOM CONFIRM MODAL -->
+<div class="modal-overlay" id="modal-delete-room">
+  <div class="modal">
+    <h2>🗑️ Delete Room</h2>
+    <p class="sub" id="delete-room-msg">Are you sure you want to delete this room? This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-delete-room')">Cancel</button>
+      <button class="btn-go" style="background:var(--danger)" id="confirm-delete-btn" onclick="confirmDeleteRoom()">Delete Room</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
 <script src="/core/js/api.js"></script>
+<script src="/core/js/theme.js"></script>
 <script src="/core/js/dashboard.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
 </body>
 </html>

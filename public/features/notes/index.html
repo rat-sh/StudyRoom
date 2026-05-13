@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Shared Notes</title>
+<script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();</script>
+<link rel="stylesheet" href="/core/css/themes.css"/>
+<link rel="stylesheet" href="/core/css/base.css"/>
+<style>
+  html,body{height:100%;margin:0;overflow:hidden;font-family:var(--font)}
+  .notes-wrap{display:flex;flex-direction:column;height:100%;background:var(--bg2)}
+  .notes-toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg3)}
+  .notes-wordcount{margin-left:auto;font-size:11px;color:var(--muted)}
+  .tb-btn{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:4px 10px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:background .12s}
+  .tb-btn:hover{background:var(--bg4);color:var(--text)}
+  .tb-btn.danger:hover{background:rgba(229,62,62,.08);color:var(--danger)}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--success);flex-shrink:0;transition:background .3s}
+  .sync-dot.syncing{background:var(--warning)}
+  .notes-area{flex:1;border:none;resize:none;padding:16px;font-size:13px;line-height:1.8;background:var(--bg2);color:var(--text);font-family:var(--font);overflow-y:auto}
+  .notes-area:focus{outline:none}
+  .notes-area::placeholder{color:var(--hint)}
+</style>
+</head>
+<body>
+<div class="notes-wrap">
+  <div class="notes-toolbar">
+    <div class="sync-dot" id="sync-dot" title="Sync status"></div>
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">📝 Shared Notes</span>
+    <button class="tb-btn" onclick="copyAll()" title="Copy all">Copy</button>
+    <button class="tb-btn danger" id="clear-btn" onclick="clearNotes()" title="Clear" style="display:none">Clear</button>
+    <div class="notes-wordcount" id="wc">0 words</div>
+  </div>
+  <textarea class="notes-area" id="notes-area" placeholder="Start typing… notes sync in real-time for everyone in the room.&#10;&#10;Use this for shared summaries, formulas, and key points."></textarea>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/core/js/api.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const roomCode = params.get('room');
+  const isHost = params.get('host') === 'true';
+
+  if (isHost) document.getElementById('clear-btn').style.display = '';
+
+  const socket = io();
+  let debounceTimer = null;
+  let ignoreNext = false;
+
+  // Join room and request current notes
+  socket.on('connect', () => {
+    socket.emit('notes-request', { roomCode });
+  });
+
+  socket.on('notes-sync', ({ content }) => {
+    const area = document.getElementById('notes-area');
+    if (ignoreNext) { ignoreNext = false; return; }
+    const pos = area.selectionStart;
+    area.value = content;
+    area.setSelectionRange(pos, pos);
+    updateWC();
+    setSyncDot(false);
+  });
+
+  const area = document.getElementById('notes-area');
+  area.addEventListener('input', () => {
+    updateWC();
+    setSyncDot(true);
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      ignoreNext = true;
+      socket.emit('notes-update', { roomCode, content: area.value });
+      setTimeout(() => setSyncDot(false), 600);
+    }, 300);
+  });
+
+  function updateWC() {
+    const words = area.value.trim() ? area.value.trim().split(/\s+/).length : 0;
+    document.getElementById('wc').textContent = words + ' word' + (words === 1 ? '' : 's');
+  }
+
+  function setSyncDot(syncing) {
+    document.getElementById('sync-dot').classList.toggle('syncing', syncing);
+  }
+
+  function copyAll() {
+    navigator.clipboard.writeText(area.value).then(() => showToast('Copied!'));
+  }
+
+  function clearNotes() {
+    if (!confirm('Clear all notes for everyone?')) return;
+    area.value = '';
+    socket.emit('notes-clear', { roomCode });
+    updateWC();
+  }
+
+  function showToast(msg) {
+    let t = document.getElementById('_toast');
+    if (!t) { t = document.createElement('div'); t.id = '_toast'; Object.assign(t.style, {position:'fixed',bottom:'1rem',left:'50%',transform:'translateX(-50%)',background:'var(--bg4)',border:'1px solid var(--border2)',padding:'7px 18px',borderRadius:'20px',fontSize:'12px',zIndex:'9999',transition:'opacity .2s'}); document.body.appendChild(t); }
+    t.textContent = msg; t.style.opacity = '1';
+    setTimeout(() => t.style.opacity = '0', 2000);
+  }
+</script>
+</body>
+</html>

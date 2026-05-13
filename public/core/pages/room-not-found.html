@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>StudyRoom — Room Not Found</title>
+<script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
+<link rel="stylesheet" href="/core/css/base.css"/>
+<style>
+  html,body{height:100%;display:flex;align-items:center;justify-content:center;text-align:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:16px;padding:2rem;animation:fadeIn .4s ease}
+  .art{font-size:5rem;animation:float 3s ease infinite}
+  h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em}
+  p{color:var(--muted);font-size:14px;max-width:320px;line-height:1.65}
+  .code-hint{font-family:var(--mono,monospace);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 10px;font-size:13px;color:var(--text2)}
+  .btn{margin-top:8px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s,transform .1s}
+  .btn:hover{background:var(--accent-dark);transform:translateY(-1px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="art">🚪</div>
+  <h1>Room Not Found</h1>
+  <p id="err-msg">This room doesn't exist or has expired. Rooms last 24 hours.</p>
+  <span class="code-hint" id="room-code-hint"></span>
+  <button class="btn" onclick="window.location.href='/dashboard'">Go to Dashboard</button>
+  <a href="/lobby" style="font-size:13px;color:var(--muted)">Browse public rooms →</a>
+</div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code') || '';
+  const reason = params.get('reason') || '';
+  if(code) document.getElementById('room-code-hint').textContent = 'Room: ' + code.toUpperCase();
+  if(reason === 'expired') document.getElementById('err-msg').textContent = 'This room has expired. Rooms are active for 24 hours after creation.';
+</script>
+</body>
+</html>

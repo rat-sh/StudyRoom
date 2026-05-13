@@ -4,45 +4,182 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Create Account</title>
-<meta name="description" content="Create your StudyRoom account and start studying together."/>
+<meta name="description" content="Create your free StudyRoom account and start studying with friends."/>
+<script>
+  (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
-<link rel="stylesheet" href="/core/css/auth.css"/>
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .auth-layout { display: flex; height: 100%; }
+  .auth-deco {
+    width: 50%;
+    background: var(--accent);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    gap: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  @media (max-width: 768px) { .auth-deco { display: none; } .auth-right { width: 100%; } }
+  .auth-deco-art { font-size: 5rem; animation: float 3s ease infinite; }
+  .auth-deco-title { font-size: 1.6rem; font-weight: 800; color: rgba(255,255,255,0.95); letter-spacing: -0.03em; text-align: center; }
+  .auth-deco-sub { color: rgba(255,255,255,0.75); font-size: 0.9rem; text-align: center; max-width: 280px; line-height: 1.6; }
+  .auth-deco-bullets { display: flex; flex-direction: column; gap: 12px; max-width: 280px; }
+  .auth-deco-bullet { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 500; }
+  .deco-blob { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.08); }
+  .deco-blob-1 { width: 300px; height: 300px; top: -100px; right: -100px; }
+  .deco-blob-2 { width: 200px; height: 200px; bottom: -80px; left: -60px; }
+
+  .auth-right {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: var(--bg);
+    overflow-y: auto;
+  }
+  .auth-card { width: 100%; max-width: 400px; }
+  .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 1.75rem; }
+  .auth-logo-icon { width: 36px; height: 36px; background: var(--accent); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #fff; }
+  .auth-logo-text { font-size: 1rem; font-weight: 700; color: var(--text); }
+  .auth-card h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .auth-card .auth-sub { color: var(--muted); font-size: 13px; margin-bottom: 1.75rem; }
+
+  .float-field { position: relative; margin-bottom: 1rem; }
+  .float-field input { padding: 18px 14px 8px; border-radius: var(--radius-sm); background: var(--bg3); border: 1px solid var(--border2); width: 100%; font-size: 14px; transition: border-color 0.15s; }
+  .float-field input:focus { border-color: var(--accent-muted); }
+  .float-field label { position: absolute; left: 14px; top: 14px; font-size: 14px; color: var(--hint); pointer-events: none; transition: all 0.15s; }
+  .float-field input:focus + label,
+  .float-field input:not(:placeholder-shown) + label { top: 5px; font-size: 10px; font-weight: 500; color: var(--accent); letter-spacing: 0.02em; }
+
+  .auth-btn { width: 100%; padding: 13px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 0.5rem; }
+  .auth-btn:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  .auth-error { background: rgba(229,62,62,0.08); color: var(--danger); border: 1px solid rgba(229,62,62,0.2); border-radius: var(--radius-xs); padding: 10px 14px; font-size: 13px; margin-bottom: 12px; display: none; }
+  .auth-error.show { display: block; }
+  .auth-success { background: rgba(56,161,105,0.08); color: var(--success); border: 1px solid rgba(56,161,105,0.2); border-radius: var(--radius-xs); padding: 10px 14px; font-size: 13px; margin-bottom: 12px; display: none; }
+  .auth-success.show { display: block; }
+
+  .auth-footer { margin-top: 1.5rem; text-align: center; font-size: 13px; color: var(--muted); }
+  .auth-footer a { color: var(--accent); font-weight: 600; }
+
+  .auth-theme-btn { position: fixed; top: 1rem; right: 1rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 100; font-size: 16px; transition: background 0.12s; box-shadow: var(--shadow); }
+  .auth-theme-btn:hover { background: var(--bg3); }
+</style>
 </head>
 <body>
-<div class="auth-page">
-  <button onclick="toggleTheme()" style="position:absolute;top:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:50%;width:40px;height:40px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);" title="Toggle Theme">
-    <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
-  </button>
-  <div class="auth-card">
-    <div class="auth-logo">
-      <div class="auth-logo-icon"><i data-lucide="book-open"></i></div>
-      StudyRoom
+
+<button class="auth-theme-btn" id="theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose theme" title="Choose theme">🎨</button>
+
+<div class="auth-layout">
+  <div class="auth-deco">
+    <div class="deco-blob deco-blob-1"></div>
+    <div class="deco-blob deco-blob-2"></div>
+    <div class="auth-deco-art">✨</div>
+    <div>
+      <div class="auth-deco-title">Join StudyRoom</div>
+      <div class="auth-deco-sub">Start studying smarter with real-time collaboration tools.</div>
     </div>
-    <h1>Create account</h1>
-    <p class="sub">Join thousands studying together in real-time</p>
-    <div id="err" class="error-msg hidden"><i data-lucide="alert-circle" style="width:16px;height:16px"></i><span id="err-text" style="margin-left:4px"></span></div>
-    <div class="field">
-      <label>Full name</label>
-      <input type="text" id="name" placeholder="Your name" autocomplete="name"/>
+    <div class="auth-deco-bullets">
+      <div class="auth-deco-bullet"><span>🎮</span><span>Game lobby with Chess & Sudoku</span></div>
+      <div class="auth-deco-bullet"><span>📅</span><span>Schedule & track study sessions</span></div>
+      <div class="auth-deco-bullet"><span>🏆</span><span>Earn achievement badges</span></div>
     </div>
-    <div class="field">
-      <label>Email address</label>
-      <input type="email" id="email" placeholder="you@example.com" autocomplete="email"/>
+  </div>
+
+  <div class="auth-right">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">📚</div>
+        <div class="auth-logo-text">StudyRoom</div>
+      </div>
+      <h1>Create account</h1>
+      <p class="auth-sub">Already have one? <a href="/login">Sign in →</a></p>
+
+      <div class="auth-error" id="auth-error"></div>
+      <div class="auth-success" id="auth-success"></div>
+
+      <div class="float-field">
+        <input type="text" id="name" placeholder=" " autocomplete="name" required/>
+        <label for="name">Display name</label>
+      </div>
+      <div class="float-field">
+        <input type="email" id="email" placeholder=" " autocomplete="email" required/>
+        <label for="email">Email address</label>
+      </div>
+      <div class="float-field">
+        <input type="password" id="password" placeholder=" " autocomplete="new-password" required/>
+        <label for="password">Password (min 6 chars)</label>
+      </div>
+
+      <button class="auth-btn" id="signup-btn" onclick="doSignup()">
+        Create account
+      </button>
+
+      <div class="auth-footer">
+        Already have an account? <a href="/login">Sign in</a>
+      </div>
     </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="password" placeholder="Min 6 characters" autocomplete="new-password"/>
-    </div>
-    <button class="btn-primary" id="btn" onclick="doSignup()">Create Account</button>
-    <div class="auth-switch">Already have an account? <a href="/">Sign in</a></div>
   </div>
 </div>
+
 <div class="toast" id="toast"></div>
+
 <script src="/core/js/api.js"></script>
-<script src="/core/js/auth.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
+<script src="/core/js/theme.js"></script>
+<script>
+  async function doSignup() {
+    const btn = document.getElementById('signup-btn');
+    const errEl = document.getElementById('auth-error');
+    const succEl = document.getElementById('auth-success');
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    errEl.classList.remove('show');
+    succEl.classList.remove('show');
+
+    if (!name || !email || !password) {
+      errEl.textContent = 'Please fill in all fields';
+      errEl.classList.add('show');
+      return;
+    }
+    if (password.length < 6) {
+      errEl.textContent = 'Password must be at least 6 characters';
+      errEl.classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating account…';
+
+    const { ok, data } = await API.post('/api/auth/signup', { name, email, password });
+
+    if (!ok) {
+      errEl.textContent = data.error || 'Signup failed';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Create account';
+      return;
+    }
+
+    succEl.textContent = '🎉 Account created! Redirecting to sign in…';
+    succEl.classList.add('show');
+    setTimeout(() => window.location.href = '/login', 1500);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSignup();
+  });
+</script>
 </body>
 </html>

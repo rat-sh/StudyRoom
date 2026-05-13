@@ -3,49 +3,373 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>StudyRoom — Login</title>
-<meta name="description" content="Login to StudyRoom and start studying with others in real-time."/>
+<title>StudyRoom — Sign In</title>
+<meta name="description" content="Sign in to StudyRoom and start studying with friends in real-time."/>
+<script>
+  (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
-<link rel="stylesheet" href="/core/css/auth.css"/>
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .auth-layout {
+    display: flex;
+    height: 100%;
+  }
+  /* ── LEFT DECORATIVE PANEL ── */
+  .auth-deco {
+    width: 50%;
+    background: var(--accent);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    gap: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  @media (max-width: 768px) { .auth-deco { display: none; } .auth-right { width: 100%; } }
+
+  .auth-deco-art {
+    font-size: 5rem;
+    text-align: center;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+    animation: float 3s ease infinite;
+  }
+  .auth-deco-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: rgba(255,255,255,0.95);
+    letter-spacing: -0.03em;
+    text-align: center;
+  }
+  .auth-deco-sub {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.9rem;
+    text-align: center;
+    max-width: 280px;
+    line-height: 1.6;
+  }
+  .auth-deco-bullets {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 280px;
+  }
+  .auth-deco-bullet {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .auth-deco-bullet span:first-child {
+    font-size: 1.1rem;
+  }
+  .deco-blob {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+  }
+  .deco-blob-1 { width: 300px; height: 300px; top: -100px; right: -100px; }
+  .deco-blob-2 { width: 200px; height: 200px; bottom: -80px; left: -60px; }
+
+  /* ── RIGHT FORM PANEL ── */
+  .auth-right {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: var(--bg);
+    overflow-y: auto;
+  }
+  .auth-card {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .auth-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+  .auth-logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #fff;
+  }
+  .auth-logo-text {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .auth-card h1 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+  .auth-card .auth-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 1.75rem;
+  }
+
+  /* ── FLOATING LABEL FIELDS ── */
+  .float-field {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+  .float-field input {
+    padding: 18px 14px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    width: 100%;
+    font-size: 14px;
+    transition: border-color 0.15s;
+  }
+  .float-field input:focus { border-color: var(--accent-muted); }
+  .float-field label {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    font-size: 14px;
+    color: var(--hint);
+    pointer-events: none;
+    transition: all 0.15s;
+    font-weight: 400;
+  }
+  .float-field input:focus + label,
+  .float-field input:not(:placeholder-shown) + label {
+    top: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+
+  .auth-btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 0.5rem;
+  }
+  .auth-btn:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  .auth-btn:active { transform: translateY(0); }
+  .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  .auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 1.25rem 0;
+    color: var(--hint);
+    font-size: 12px;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .google-btn {
+    width: 100%;
+    padding: 11px;
+    background: var(--bg3);
+    color: var(--text2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.12s;
+  }
+  .google-btn:hover { background: var(--bg4); }
+
+  .auth-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .auth-footer a {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .auth-error {
+    background: rgba(229,62,62,0.08);
+    color: var(--danger);
+    border: 1px solid rgba(229,62,62,0.2);
+    border-radius: var(--radius-xs);
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    display: none;
+  }
+  .auth-error.show { display: block; }
+
+  /* ── THEME PICKER TOP RIGHT ── */
+  .auth-theme-btn {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 100;
+    font-size: 16px;
+    transition: background 0.12s;
+    box-shadow: var(--shadow);
+  }
+  .auth-theme-btn:hover { background: var(--bg3); }
+</style>
 </head>
 <body>
-<div class="auth-page">
-  <button onclick="toggleTheme()" style="position:absolute;top:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:50%;width:40px;height:40px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);" title="Toggle Theme">
-    <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
-  </button>
-  <div class="auth-card">
-    <div class="auth-logo">
-      <div class="auth-logo-icon"><i data-lucide="book-open"></i></div>
-      StudyRoom
+
+<button class="auth-theme-btn" id="theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose theme" title="Choose theme">🎨</button>
+
+<div class="auth-layout">
+  <!-- LEFT DECO PANEL -->
+  <div class="auth-deco">
+    <div class="deco-blob deco-blob-1"></div>
+    <div class="deco-blob deco-blob-2"></div>
+    <div class="auth-deco-art">📚</div>
+    <div>
+      <div class="auth-deco-title">Welcome back!</div>
+      <div class="auth-deco-sub">Your study partners are waiting. Sign in and get focused.</div>
     </div>
-    <h1>Welcome back</h1>
-    <p class="sub">Sign in to continue your study sessions</p>
-    <div id="err" class="error-msg hidden"><i data-lucide="alert-circle" style="width:16px;height:16px"></i><span id="err-text" style="margin-left:4px"></span></div>
-    <div class="field">
-      <label>Email address</label>
-      <input type="email" id="email" placeholder="you@example.com" autocomplete="email"/>
+    <div class="auth-deco-bullets">
+      <div class="auth-deco-bullet"><span>🎵</span><span>Study with synchronized music</span></div>
+      <div class="auth-deco-bullet"><span>🎥</span><span>Video calls with your study squad</span></div>
+      <div class="auth-deco-bullet"><span>✏️</span><span>Live whiteboard collaboration</span></div>
     </div>
-    <div class="field">
-      <label>Password</label>
-      <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password"/>
+  </div>
+
+  <!-- RIGHT FORM PANEL -->
+  <div class="auth-right">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">📚</div>
+        <div class="auth-logo-text">StudyRoom</div>
+      </div>
+      <h1>Sign in</h1>
+      <p class="auth-sub">Don't have an account? <a href="/signup">Create one free →</a></p>
+
+      <div class="auth-error" id="auth-error"></div>
+
+      <div class="float-field">
+        <input type="email" id="email" placeholder=" " autocomplete="email" required/>
+        <label for="email">Email address</label>
+      </div>
+      <div class="float-field">
+        <input type="password" id="password" placeholder=" " autocomplete="current-password" required/>
+        <label for="password">Password</label>
+      </div>
+
+      <button class="auth-btn" id="login-btn" onclick="doLogin()">
+        Sign in
+      </button>
+
+      <div class="auth-divider">or</div>
+
+      <button class="google-btn" onclick="showToast('Google OAuth coming soon!')">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+        Continue with Google
+      </button>
+
+      <div class="auth-footer">
+        New to StudyRoom? <a href="/signup">Create account</a>
+      </div>
     </div>
-    <button class="btn-primary" id="btn" onclick="doLogin()">Sign In</button>
-    <div class="auth-divider"><span>or</span></div>
-    <button class="btn-outline" onclick="window.location.href='/join'" style="margin-bottom:8px">
-      <i data-lucide="key" style="width:16px;height:16px"></i> Join with Room Code
-    </button>
-    <button class="btn-outline" onclick="window.location.href='/lobby'">
-      <i data-lucide="globe" style="width:16px;height:16px"></i> Browse Public Rooms
-    </button>
-    <div class="auth-switch">Don't have an account? <a href="/signup">Create one</a></div>
   </div>
 </div>
+
 <div class="toast" id="toast"></div>
+
 <script src="/core/js/api.js"></script>
-<script src="/core/js/auth.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
+<script src="/core/js/theme.js"></script>
+<script>
+  // Redirect if already logged in
+  (async function() {
+    const user = API.user();
+    if (user) {
+      const { ok } = await API.get('/api/auth/me');
+      if (ok) window.location.href = '/dashboard';
+    }
+  })();
+
+  async function doLogin() {
+    const btn = document.getElementById('login-btn');
+    const errEl = document.getElementById('auth-error');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    errEl.classList.remove('show');
+    if (!email || !password) {
+      errEl.textContent = 'Please fill in all fields';
+      errEl.classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Signing in…';
+
+    const { ok, data } = await API.post('/api/auth/login', { email, password });
+
+    if (!ok) {
+      errEl.textContent = data.error || 'Login failed';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+      return;
+    }
+
+    // Store non-sensitive user info for display
+    localStorage.setItem('sr_user', JSON.stringify(data.user));
+    window.location.href = '/dashboard';
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+</script>
 </body>
 </html>

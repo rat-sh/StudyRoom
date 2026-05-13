@@ -4,42 +4,68 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Room</title>
+<script>
+  (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/room.css"/>
 </head>
 <body>
 <div class="room-page" id="room-page">
 
-  <!-- PERMISSION BANNER -->
+  <!-- LOADING OVERLAY -->
+  <div class="room-loading" id="room-loading">
+    <div class="room-loading-inner">
+      <div class="loading-logo">📚</div>
+      <div class="loading-code" id="loading-code">Connecting…</div>
+      <div class="loading-text">Connecting to room…</div>
+      <div class="loading-dots">
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERM BANNER -->
   <div class="perm-banner" id="perm-banner">
-    <span style="display:flex;align-items:center;gap:4px"><i data-lucide="camera" style="width:14px;height:14px"></i> StudyRoom needs camera &amp; microphone access for video calls</span>
+    <span>📷 StudyRoom needs camera &amp; microphone access for video calls</span>
     <button class="perm-allow" onclick="requestMedia()">Allow Access</button>
   </div>
 
   <!-- HEADER -->
   <header class="room-header">
-    <button class="room-back" onclick="leaveRoom()"><i data-lucide="arrow-left" style="width:14px;height:14px;margin-right:4px"></i> Back</button>
+    <button class="room-back" onclick="leaveRoom()" aria-label="Leave room">← Back</button>
     <div class="room-header-title" id="room-name-title">Study Room</div>
     <div class="room-code-badge" id="room-code-badge">------</div>
     <div class="online-indicator">
       <div class="online-dot"></div>
       <span id="online-count">1</span> online
     </div>
+    <!-- NOW PLAYING MINI WIDGET -->
+    <div class="now-playing-mini" id="now-playing-mini" style="display:none">
+      <span class="np-icon">🎵</span>
+      <span class="np-title" id="np-title">—</span>
+      <button class="np-skip" onclick="skipTrack()" aria-label="Skip track" title="Skip">⏭</button>
+    </div>
+    <!-- THEME PICKER -->
+    <button class="room-theme-btn" id="theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose theme" title="Theme">🎨</button>
   </header>
 
   <!-- BODY -->
   <div class="room-body">
     <!-- VIDEO AREA -->
     <div class="video-area" id="video-area">
-      <div class="video-grid" id="video-grid">
+      <div class="video-grid" id="video-grid" data-peers="1">
         <div class="video-tile you" id="tile-self">
           <video id="local-video" autoplay muted playsinline></video>
           <div class="tile-avatar" id="self-avatar">?</div>
           <div class="tile-name" id="self-name">You</div>
           <div class="tile-you-tag">You</div>
-          <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
+          <div class="tile-mic-off hidden" id="self-mic-off">🔇</div>
         </div>
       </div>
       <div class="cursor-overlay" id="cursor-overlay"></div>
@@ -49,38 +75,46 @@
     <div class="feat-panel-wrap" id="feat-panel-wrap">
       <div class="feat-panel-header">
         <span id="feat-panel-title">Feature</span>
-        <button class="feat-close" onclick="closeFeature()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+        <button class="feat-close" onclick="closeFeature()" aria-label="Close panel">✕</button>
       </div>
       <div class="feat-panel-body" id="feat-panel-body"></div>
     </div>
 
     <!-- FEATURE RAIL -->
     <div class="feat-rail">
-      <div class="feat-btn" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard">
-        <i data-lucide="pen-tool" style="width:20px;height:20px"></i><span class="feat-tooltip">Whiteboard</span>
-      </div>
-      <div class="feat-btn" id="feat-timer" onclick="toggleFeature('timer')" title="Pomodoro">
-        <i data-lucide="timer" style="width:20px;height:20px"></i><span class="feat-tooltip">Pomodoro</span>
-      </div>
-      <div class="feat-btn" id="feat-files" onclick="toggleFeature('files')" title="Files">
-        <i data-lucide="folder" style="width:20px;height:20px"></i><span class="feat-tooltip">Files</span>
-      </div>
+      <button class="feat-btn" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard" aria-label="Whiteboard">
+        ✏️<span class="feat-tooltip">Whiteboard</span>
+      </button>
+      <button class="feat-btn" id="feat-timer" onclick="toggleFeature('timer')" title="Pomodoro Timer" aria-label="Timer">
+        ⏱<span class="feat-tooltip">Pomodoro</span>
+      </button>
+      <button class="feat-btn" id="feat-files" onclick="toggleFeature('files')" title="File Sharing" aria-label="Files">
+        📁<span class="feat-tooltip">Files</span>
+      </button>
+      <button class="feat-btn" id="feat-notes" onclick="toggleFeature('notes')" title="Shared Notes" aria-label="Notes">
+        📝<span class="feat-tooltip">Notes</span>
+      </button>
       <div style="flex:1"></div>
-      <div class="feat-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">
-        <i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Toggle sidebar</span>
-      </div>
+      <button class="feat-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
+        ›<span class="feat-tooltip">Toggle sidebar</span>
+      </button>
     </div>
 
     <!-- RIGHT SIDEBAR -->
     <div class="room-sidebar" id="room-sidebar">
       <div class="rsb-tabs">
-        <div class="rsb-tab active" id="tab-people" onclick="setTab('people')"><i data-lucide="users" style="width:14px;height:14px"></i> People</div>
-        <div class="rsb-tab" id="tab-chat" onclick="setTab('chat')"><i data-lucide="message-square" style="width:14px;height:14px"></i> Chat</div>
+        <button class="rsb-tab active" id="tab-people" onclick="setTab('people')">👥 People</button>
+        <button class="rsb-tab" id="tab-chat" onclick="setTab('chat')">💬 Chat</button>
       </div>
 
       <!-- PEOPLE PANEL -->
       <div class="rsb-panel active" id="rsb-people">
         <div class="people-panel" id="people-list"></div>
+        <!-- HAND QUEUE -->
+        <div class="hand-queue" id="hand-queue" style="display:none">
+          <div class="hand-queue-title">✋ Raised Hands</div>
+          <div id="hand-queue-list"></div>
+        </div>
       </div>
 
       <!-- CHAT PANEL -->
@@ -88,9 +122,9 @@
         <div class="chat-panel">
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-row">
-            <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
+            <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions" aria-label="Open emoji picker">😊</button>
             <input type="text" class="chat-input" id="chat-input" placeholder="Type a message…" maxlength="300"/>
-            <button class="chat-send" onclick="sendChat()" title="Send"><i data-lucide="arrow-up" style="width:16px;height:16px"></i></button>
+            <button class="chat-send" onclick="sendChat()" title="Send" aria-label="Send message">↑</button>
           </div>
         </div>
       </div>
@@ -99,45 +133,62 @@
 
   <!-- CONTROLS BAR -->
   <div class="controls-bar">
-    <button class="ctrl-btn" id="btn-mic" onclick="toggleMic()" title="Microphone"><i data-lucide="mic" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()" title="Camera"><i data-lucide="camera" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share"><i data-lucide="monitor" style="width:20px;height:20px"></i></button>
+    <button class="ctrl-btn" id="btn-mic" onclick="toggleMic()" title="Microphone" aria-label="Toggle microphone">🎤</button>
+    <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()" title="Camera" aria-label="Toggle camera">📷</button>
+    <button class="ctrl-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share" aria-label="Toggle screen share">🖥</button>
     <div class="ctrl-sep"></div>
-    <button class="ctrl-btn" id="btn-hand" onclick="sendReaction('✋')" title="Raise Hand"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions"><i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i></button>
+    <button class="ctrl-btn" id="btn-hand" onclick="toggleHand()" title="Raise Hand" aria-label="Raise hand">✋</button>
+    <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions" aria-label="Open emoji reactions">😊</button>
     <div class="ctrl-sep"></div>
-    <button class="ctrl-btn" onclick="toggleTheme()" title="Toggle Theme"><i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i></button>
     <button class="ctrl-end" onclick="leaveRoom()">End Call</button>
   </div>
 </div>
 
-<!-- EMOJI PICKER -->
+<!-- EMOJI PICKER (fixed position, positioned by JS) -->
 <div class="emoji-picker-popup" id="emoji-picker">
-  <button class="ep-emoji" onclick="sendReaction('👍')">👍</button>
-  <button class="ep-emoji" onclick="sendReaction('❤️')">❤️</button>
-  <button class="ep-emoji" onclick="sendReaction('😂')">😂</button>
-  <button class="ep-emoji" onclick="sendReaction('🎉')">🎉</button>
-  <button class="ep-emoji" onclick="sendReaction('🔥')">🔥</button>
-  <button class="ep-emoji" onclick="sendReaction('👏')">👏</button>
-  <button class="ep-emoji" onclick="sendReaction('😮')">😮</button>
-  <button class="ep-emoji" onclick="sendReaction('🤔')">🤔</button>
-  <button class="ep-emoji" onclick="sendReaction('💪')">💪</button>
-  <button class="ep-emoji" onclick="sendReaction('✅')">✅</button>
-  <button class="ep-emoji" onclick="sendReaction('😍')">😍</button>
-  <button class="ep-emoji" onclick="sendReaction('🙏')">🙏</button>
-  <button class="ep-emoji" onclick="sendEmojiToChat('👍')">
-    <span style="font-size:10px;position:absolute;right:1px;bottom:1px;opacity:0.6">💬</span>👍
-  </button>
-  <div style="width:100%;border-top:1px solid var(--border);padding-top:8px;margin-top:2px;font-size:10px;color:var(--muted)">
-    Click to react · will also appear in chat
+  <div class="ep-section">React to the room</div>
+  <div class="ep-grid">
+    <button class="ep-emoji" onclick="sendReaction('👍')">👍</button>
+    <button class="ep-emoji" onclick="sendReaction('❤️')">❤️</button>
+    <button class="ep-emoji" onclick="sendReaction('😂')">😂</button>
+    <button class="ep-emoji" onclick="sendReaction('🎉')">🎉</button>
+    <button class="ep-emoji" onclick="sendReaction('🔥')">🔥</button>
+    <button class="ep-emoji" onclick="sendReaction('👏')">👏</button>
+    <button class="ep-emoji" onclick="sendReaction('😮')">😮</button>
+    <button class="ep-emoji" onclick="sendReaction('🤔')">🤔</button>
+    <button class="ep-emoji" onclick="sendReaction('💪')">💪</button>
+    <button class="ep-emoji" onclick="sendReaction('✅')">✅</button>
+    <button class="ep-emoji" onclick="sendReaction('😍')">😍</button>
+    <button class="ep-emoji" onclick="sendReaction('🙏')">🙏</button>
+  </div>
+  <div class="ep-divider">Also send to chat</div>
+  <div class="ep-grid">
+    <button class="ep-emoji" onclick="sendEmojiToChat('👍')">👍</button>
+    <button class="ep-emoji" onclick="sendEmojiToChat('🎯')">🎯</button>
+    <button class="ep-emoji" onclick="sendEmojiToChat('📚')">📚</button>
+    <button class="ep-emoji" onclick="sendEmojiToChat('☕')">☕</button>
+  </div>
+</div>
+
+<!-- JOIN REQUEST MODAL (for authorized rooms) -->
+<div class="modal-overlay" id="modal-join-request">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <div style="font-size:2rem;margin-bottom:12px">🔐</div>
+    <h2>Waiting for approval</h2>
+    <p class="sub">The host needs to approve your entry. Please wait…</p>
+    <div class="loading-dots" style="justify-content:center;margin-top:16px">
+      <div class="loading-dot"></div>
+      <div class="loading-dot"></div>
+      <div class="loading-dot"></div>
+    </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
+<script src="/core/js/theme.js"></script>
 <script src="/core/js/room.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
 </body>
 </html>

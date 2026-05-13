@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>StudyRoom — Study Together, Stay Focused</title>
+<meta name="description" content="StudyRoom: Real-time collaborative study platform with video, music, whiteboard, and more."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
+<link rel="stylesheet" href="/core/css/base.css"/>
+<script>
+  // Apply theme before DOM paint — prevent flash
+  (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();
+</script>
+<style>
+  html, body {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .splash-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-align: center;
+    animation: fadeIn 0.6s ease;
+  }
+  .splash-logo {
+    width: 80px;
+    height: 80px;
+    background: var(--accent);
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: #fff;
+    position: relative;
+    animation: logoPulse 2s ease infinite;
+    box-shadow: 0 0 40px var(--accent-light);
+  }
+  @keyframes logoPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 30px var(--accent-light); }
+    50%       { transform: scale(1.04); box-shadow: 0 0 60px var(--accent-muted); }
+  }
+  .splash-glow {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    background: radial-gradient(circle, var(--accent-muted) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: -1;
+    animation: glow 2.5s ease infinite;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .splash-title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--text);
+  }
+  .splash-tagline {
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 400;
+    max-width: 300px;
+    line-height: 1.6;
+  }
+  .splash-dots {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .splash-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-muted);
+    animation: dotBounce 1.4s ease infinite;
+  }
+  .splash-dot:nth-child(2) { animation-delay: 0.2s; }
+  .splash-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotBounce {
+    0%, 80%, 100% { transform: translateY(0); background: var(--accent-muted); }
+    40%            { transform: translateY(-6px); background: var(--accent); }
+  }
+  .skip-btn {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    background: var(--bg3);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .skip-btn:hover { background: var(--bg4); color: var(--text); }
+</style>
+</head>
+<body>
+<div class="splash-wrap">
+  <div class="splash-logo">
+    📚
+    <div class="splash-glow"></div>
+  </div>
+  <div>
+    <div class="splash-title">StudyRoom</div>
+    <div class="splash-tagline">Study together. Stay focused.</div>
+  </div>
+  <div class="splash-dots">
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+  </div>
+</div>
+
+<button class="skip-btn" onclick="redirect()" aria-label="Skip intro">Skip →</button>
+
+<script src="/core/js/api.js"></script>
+<script>
+  function redirect() {
+    const user = API.user();
+    if (user) {
+      // Verify session is still valid
+      fetch('/api/auth/me', { credentials: 'include' })
+        .then(r => r.ok ? '/dashboard' : '/login')
+        .then(path => window.location.href = path)
+        .catch(() => { window.location.href = '/login'; });
+    } else {
+      window.location.href = '/login';
+    }
+  }
+  setTimeout(redirect, 1800);
+</script>
+</body>
+</html>

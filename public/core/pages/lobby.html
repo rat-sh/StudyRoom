@@ -4,77 +4,79 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>StudyRoom — Public Lobby</title>
+<meta name="description" content="Browse live public study rooms. Find your focus zone."/>
+<script>(function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('sr_theme') || 'light'); })();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/themes.css"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
+<link rel="stylesheet" href="/core/css/components.css"/>
 <link rel="stylesheet" href="/core/css/lobby.css"/>
 </head>
 <body>
-<div class="lobby-page">
-  <nav class="lobby-nav">
-    <div class="lobby-logo">
-      <div class="lobby-logo-icon"><i data-lucide="book-open"></i></div>
-      StudyRoom
+<!-- NAV -->
+<nav class="lobby-nav">
+  <a class="lobby-logo" href="/dashboard">📚 StudyRoom</a>
+  <div class="lobby-nav-right">
+    <button class="lobby-theme-btn" id="theme-picker-btn" onclick="toggleThemePicker()" aria-label="Choose theme">🎨</button>
+    <a href="/dashboard" class="nav-btn-dash">Dashboard</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="lobby-hero">
+  <div class="hero-inner">
+    <h1 class="hero-title">Find your <span class="hero-typewriter" id="hero-tw">study squad</span><span class="hero-cursor">|</span></h1>
+    <p class="hero-sub">Live public rooms — join instantly, no PIN needed</p>
+    <div class="lobby-search-wrap">
+      <input type="text" id="search-input" class="lobby-search" placeholder="Search by name or topic…" oninput="filterRooms()"/>
     </div>
-    <div class="live-count"><div class="live-dot"></div><span id="live-count">0 rooms live</span></div>
-    <div class="lobby-nav-links">
-      <button onclick="toggleTheme()" style="background:transparent;border:none;cursor:pointer;color:var(--text);display:flex;align-items:center;margin-right:12px;padding:4px;" title="Toggle Theme">
-        <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
-      </button>
-      <a href="/join" class="nav-link"><i data-lucide="key" style="width:16px;height:16px;margin-right:4px;"></i> Join with Code</a>
-      <a href="/" class="nav-link">Login</a>
-      <a href="/signup" class="nav-link primary">Sign up</a>
-    </div>
-  </nav>
-  <div class="lobby-body">
-    <div class="lobby-hero">
-      <h1>Public Study Rooms</h1>
-      <p>Browse and join live study sessions — no account needed</p>
-    </div>
-    <div class="lobby-filters">
-      <input type="text" class="search-box" id="search" placeholder="Search rooms..." oninput="filterRooms()"/>
-      <select class="topic-filter" id="topic-filter" onchange="loadRooms()">
-        <option value="All">All Topics</option>
-        <option>Physics</option>
-        <option>Math</option>
-        <option>Chemistry</option>
-        <option>Biology</option>
-        <option>History</option>
-        <option>English</option>
-        <option>Computer Science</option>
-        <option>Economics</option>
-        <option>General</option>
-      </select>
-      <button class="refresh-btn" onclick="loadRooms()"><i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Refresh</button>
-    </div>
-    <div class="rooms-grid" id="rooms-grid">
-      <div class="lobby-empty"><div class="empty-icon"><i data-lucide="book-x"></i></div><p>Loading rooms...</p></div>
-    </div>
+  </div>
+</section>
+
+<!-- TOPICS FILTER -->
+<div class="topics-bar" id="topics-bar">
+  <button class="topic-chip active" onclick="filterByTopic('', this)">All</button>
+  <button class="topic-chip" onclick="filterByTopic('Math', this)">Math</button>
+  <button class="topic-chip" onclick="filterByTopic('Physics', this)">Physics</button>
+  <button class="topic-chip" onclick="filterByTopic('Chemistry', this)">Chemistry</button>
+  <button class="topic-chip" onclick="filterByTopic('Biology', this)">Biology</button>
+  <button class="topic-chip" onclick="filterByTopic('Computer Science', this)">CS</button>
+  <button class="topic-chip" onclick="filterByTopic('English', this)">English</button>
+  <button class="topic-chip" onclick="filterByTopic('History', this)">History</button>
+  <button class="topic-chip" onclick="filterByTopic('Economics', this)">Economics</button>
+  <button class="topic-chip" onclick="filterByTopic('General', this)">General</button>
+</div>
+
+<!-- ROOMS GRID -->
+<div class="lobby-main">
+  <div class="lobby-grid" id="lobby-grid">
+    <div class="skeleton" style="height:160px;border-radius:var(--radius)"></div>
+    <div class="skeleton" style="height:140px;border-radius:var(--radius)"></div>
+    <div class="skeleton" style="height:180px;border-radius:var(--radius)"></div>
+    <div class="skeleton" style="height:150px;border-radius:var(--radius)"></div>
+    <div class="skeleton" style="height:160px;border-radius:var(--radius)"></div>
+    <div class="skeleton" style="height:145px;border-radius:var(--radius)"></div>
   </div>
 </div>
 
-<!-- GUEST NAME MODAL -->
-<div class="name-modal-bg" id="name-modal">
-  <div class="name-modal">
-    <h2>What's your name?</h2>
-    <p class="sub">You'll join as a guest — no account needed</p>
-    <div id="modal-err" class="error-msg-sm hidden"></div>
-    <div class="field">
-      <label>Display name</label>
-      <input type="text" id="guest-name-input" placeholder="Your name" maxlength="30" class="code-input" style="text-transform:none"/>
-    </div>
-    <div class="modal-actions" style="display:flex;gap:8px;margin-top:1rem">
-      <button class="btn-secondary" onclick="closeNameModal()">Cancel</button>
-      <button class="btn-secondary" onclick="joinAnonymous()" title="Generate random name">Anonymous</button>
-      <button class="btn-go" onclick="confirmJoin()">Join Room →</button>
+<!-- JOIN MODAL -->
+<div class="modal-overlay" id="modal-join">
+  <div class="modal">
+    <h2>🌐 Join Public Room</h2>
+    <p class="sub" id="join-room-desc">Joining a public room</p>
+    <div id="join-err" class="error-msg-sm hidden"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-go" id="join-confirm-btn" onclick="confirmJoin()">Join Now →</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+<script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
+<script src="/core/js/theme.js"></script>
 <script src="/core/js/lobby.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
 </body>
 </html>

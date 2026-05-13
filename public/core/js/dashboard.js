@@ -162,8 +162,7 @@ async function doJoinLink() {
 function copyCode() {
   const code = document.getElementById('room-code-display').textContent;
   const pin = document.getElementById('room-pin-display').textContent;
-  navigator.clipboard.writeText(`Room Code: ${code}\nPIN: ${pin}\nLink: ${window.location.origin}/join/${code}`);
-  showToast('Code, PIN & link copied!');
+  copyToClipboard(`Room Code: ${code}\nPIN: ${pin}\nLink: ${window.location.origin}/join/${code}`);
 }
 function copyLink() {
   navigator.clipboard.writeText(document.getElementById('share-link-text').textContent);
