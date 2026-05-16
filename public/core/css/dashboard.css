@@ -144,6 +144,13 @@
   transition:background 0.12s;white-space:nowrap;
 }
 .room-enter-btn:hover{background:var(--accent-muted)}
+.room-delete-btn{
+  background:transparent;border:none;color:var(--muted);
+  cursor:pointer;padding:5px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;flex-shrink:0;
+}
+.room-delete-btn:hover{background:rgba(255,71,87,0.1);color:var(--danger)}
 
 /* ── SCHEDULE PANEL ── */
 .schedule-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;max-width:600px}

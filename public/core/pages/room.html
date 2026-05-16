@@ -24,6 +24,9 @@
     <button class="room-back" onclick="leaveRoom()"><i data-lucide="arrow-left" style="width:14px;height:14px;margin-right:4px"></i> Back</button>
     <div class="room-header-title" id="room-name-title">Study Room</div>
     <div class="room-code-badge" id="room-code-badge">------</div>
+    <button class="share-header-btn" onclick="openShareModal()" title="Invite & Share">
+      <i data-lucide="share-2" style="width:14px;height:14px;margin-right:4px"></i> Share
+    </button>
     <div class="online-indicator">
       <div class="online-dot"></div>
       <span id="online-count">1</span> online
@@ -145,6 +148,51 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- SHARE MODAL -->
+<div class="share-modal-overlay" id="share-modal" onclick="if(event.target===this)closeShareModal()">
+  <div class="share-modal">
+    <div class="share-modal-header">
+      <div>
+        <h3><i data-lucide="share-2" style="width:15px;height:15px;margin-right:6px;vertical-align:-2px"></i>Invite to Room</h3>
+        <p id="share-room-name" style="color:var(--muted);font-size:12px;margin-top:3px">Study Room</p>
+      </div>
+      <button class="share-close-btn" onclick="closeShareModal()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+
+    <div class="share-row">
+      <span class="share-row-label">Code</span>
+      <span class="share-row-val" id="share-code-val">------</span>
+      <button class="share-copy-btn" onclick="copyShareCode()">
+        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
+      </button>
+    </div>
+
+    <div class="share-row" id="share-pin-row">
+      <span class="share-row-label">PIN</span>
+      <span class="share-row-val" id="share-pin-val">----</span>
+      <button class="share-copy-btn" onclick="copySharePin()">
+        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
+      </button>
+    </div>
+
+    <div class="share-row">
+      <span class="share-row-label">Link</span>
+      <span class="share-row-val" id="share-link-val" style="font-size:11px">generating…</span>
+      <button class="share-copy-btn" onclick="copyShareLink()">
+        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
+      </button>
+    </div>
+
+    <div class="share-modal-footer">
+      <button class="share-all-btn" onclick="copyShareAll()">
+        <i data-lucide="clipboard-list" style="width:14px;height:14px"></i> Copy All Details
+      </button>
+    </div>
+    <p class="share-note">PIN visible only to the room creator · link works for anyone with the PIN</p>
+  </div>
+</div>
+
 <div id="yt-player" style="display:none;"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>

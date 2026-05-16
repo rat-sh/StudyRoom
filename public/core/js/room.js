@@ -44,13 +44,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('self-avatar').textContent = initials(user.name);
   document.getElementById('self-name').textContent = user.name;
   addToPeopleList('self', user.name, true, user.guest);
-  socket.emit('join-room', { roomCode, user });
 
+  // ── FIX Issue 1 & 2: Acquire media FIRST, THEN join the room socket.
+  // Previously join-room was emitted before getUserMedia resolved. The server
+  // responded with room-peers almost instantly, triggering callPeer() while
+  // localStream was still null — so pc.addTrack() was skipped and peers
+  // received offers with zero media tracks (black screen + no audio).
+  try { await requestMedia(true); } catch { /* user denied — join anyway */ }
+  socket.emit('join-room', { roomCode, user });
   // Init music bot — also requests current state for late joiners
   MusicBot.init(socket, roomCode);
-
-  // Try media silently on load
-  try { await requestMedia(true); } catch {}
 
   // Chat keyboard
   const chatInput = document.getElementById('chat-input');
@@ -58,16 +61,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   });
 
-  // Close emoji picker on outside click
+  // Close emoji picker on outside click — use composedPath() to handle
+  // SVG children of the trigger button correctly (fixes Issue 8 too)
   document.addEventListener('click', e => {
     const picker = document.getElementById('emoji-picker');
     const triggerBtn = document.getElementById('emoji-trigger-btn');
     const triggerBarBtn = document.getElementById('btn-emoji-bar');
-    if (!picker.contains(e.target) && e.target !== triggerBtn && e.target !== triggerBarBtn) {
+    const path = e.composedPath();
+    const clickedTrigger = path.includes(triggerBtn) || path.includes(triggerBarBtn);
+    if (!picker.contains(e.target) && !clickedTrigger) {
       picker.classList.remove('open');
       emojiPickerOpen = false;
     }
   });
+
+  // Load room info for share panel
+  fetchRoomInfo();
 
   // Init resizable sidebar
   initSidebarResize();
@@ -627,6 +636,72 @@ function addToPeopleList(socketId, name, isYou = false, guest = false) {
     ${guest && !isYou ? '<span class="peer-guest">Guest</span>' : ''}
   `;
   list.appendChild(div);
+}
+
+// ── SHARE PANEL ────────────────────────────────────────────────
+let roomInfoCache = null;
+
+async function fetchRoomInfo() {
+  const headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  try {
+    const res = await fetch(`/api/rooms/info/${roomCode}`, { headers });
+    if (!res.ok) return;
+    roomInfoCache = await res.json();
+    // Update header title with real room name
+    if (roomInfoCache.name) {
+      document.getElementById('room-name-title').textContent = roomInfoCache.name;
+    }
+  } catch { /* network error — share panel will show fallback */ }
+}
+
+function openShareModal() {
+  const modal = document.getElementById('share-modal');
+  const info = roomInfoCache;
+  const link = `${window.location.origin}/join/${roomCode}`;
+
+  document.getElementById('share-room-name').textContent = info?.name || 'Study Room';
+  document.getElementById('share-code-val').textContent = roomCode;
+  document.getElementById('share-link-val').textContent = link;
+
+  const pinRow = document.getElementById('share-pin-row');
+  const pinVal = document.getElementById('share-pin-val');
+  if (info?.pin) {
+    pinVal.textContent = info.pin;
+    pinRow.classList.remove('hidden');
+  } else {
+    pinRow.classList.add('hidden');
+  }
+
+  modal.classList.add('open');
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('open');
+}
+
+function copyShareCode() {
+  navigator.clipboard.writeText(roomCode);
+  showToast('Room code copied!');
+}
+
+function copySharePin() {
+  const pin = document.getElementById('share-pin-val').textContent;
+  if (pin) { navigator.clipboard.writeText(pin); showToast('PIN copied!'); }
+}
+
+function copyShareLink() {
+  const link = document.getElementById('share-link-val').textContent;
+  navigator.clipboard.writeText(link);
+  showToast('Invite link copied!');
+}
+
+function copyShareAll() {
+  const code = roomCode;
+  const pin = document.getElementById('share-pin-val')?.textContent || '(see creator)';
+  const link = document.getElementById('share-link-val').textContent;
+  navigator.clipboard.writeText(`Room Code: ${code}\nPIN: ${pin}\nLink: ${link}`);
+  showToast('All details copied!');
 }
 
 // ── LEAVE ──────────────────────────────────────────────────────
