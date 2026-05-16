@@ -10,13 +10,20 @@ let snapshot;
 
 // ── RESIZE ───────────────────────────────────────────────────────
 function resize() {
-  // Save current drawing
+  // Use the board area container (not the whole wrap) for precise sizing
+  const boardArea = canvas.parentElement; // .wb-board-area
+  if (!boardArea) return;
+
+  // Save the latest drawn frame before resizing wipes the canvas
   const imgData = history.length ? history[history.length - 1] : null;
-  canvas.width = canvas.parentElement.offsetWidth;
-  canvas.height = canvas.parentElement.offsetHeight - (canvas.previousElementSibling?.offsetHeight || 0);
-  // Dark background
+
+  canvas.width  = boardArea.clientWidth;
+  canvas.height = boardArea.clientHeight;
+
+  // Always restore white background
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   if (imgData) {
     const img = new Image();
     img.src = imgData;

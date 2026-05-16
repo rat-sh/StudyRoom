@@ -1,6 +1,7 @@
 import whiteboardHandler from './features/whiteboard.js';
 import timerHandler from './features/timer.js';
 import reactionsHandler from './features/reactions.js';
+import musicHandler from './features/music.js';
 
 const rooms = new Map();
 
@@ -8,6 +9,7 @@ export function setupCoreHandlers(io) {
   whiteboardHandler(io, rooms);
   timerHandler(io, rooms);
   reactionsHandler(io, rooms);
+  musicHandler(io, rooms);
 
   io.on('connection', (socket) => {
 

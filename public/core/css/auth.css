@@ -23,7 +23,10 @@
   font-size:11px;font-weight:700;color:var(--accent);
   letter-spacing:0.1em;text-transform:uppercase;
   margin-bottom:2rem;
+  transition:opacity 0.15s;
+  user-select:none;
 }
+.auth-logo:hover { opacity:0.75; }
 .auth-logo-icon{
   width:32px;height:32px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));

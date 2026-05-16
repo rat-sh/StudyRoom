@@ -12,18 +12,36 @@
 <body>
 <div class="lobby-page">
   <nav class="lobby-nav">
-    <div class="lobby-logo">
+    <!-- Logo — clicking goes to dashboard (Issue 5) -->
+    <div class="lobby-logo" id="lobby-logo" onclick="goHome()" title="Go to home" style="cursor:pointer">
       <div class="lobby-logo-icon"><i data-lucide="book-open"></i></div>
       StudyRoom
     </div>
     <div class="live-count"><div class="live-dot"></div><span id="live-count">0 rooms live</span></div>
+
     <div class="lobby-nav-links">
       <button onclick="toggleTheme()" style="background:transparent;border:none;cursor:pointer;color:var(--text);display:flex;align-items:center;margin-right:12px;padding:4px;" title="Toggle Theme">
         <i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i>
       </button>
       <a href="/join" class="nav-link"><i data-lucide="key" style="width:16px;height:16px;margin-right:4px;"></i> Join with Code</a>
-      <a href="/" class="nav-link">Login</a>
-      <a href="/signup" class="nav-link primary">Sign up</a>
+
+      <!-- Issue 4: Guest identity — shown when NOT logged in -->
+      <div class="guest-identity" id="guest-identity" style="display:none">
+        <div class="guest-avatar" id="guest-nav-avatar">?</div>
+        <span class="guest-nav-name" id="guest-nav-name">Guest</span>
+      </div>
+
+      <!-- Shown when logged in -->
+      <div class="guest-identity" id="logged-identity" style="display:none">
+        <div class="guest-avatar" id="logged-nav-avatar">?</div>
+        <span class="guest-nav-name" id="logged-nav-name">User</span>
+      </div>
+
+      <!-- Auth buttons (shown when NOT logged in) -->
+      <div id="auth-links">
+        <a href="/" class="nav-link">Login</a>
+        <a href="/signup" class="nav-link primary">Sign up</a>
+      </div>
     </div>
   </nav>
   <div class="lobby-body">
