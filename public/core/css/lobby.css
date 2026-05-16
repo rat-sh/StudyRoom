@@ -28,6 +28,49 @@
 .nav-link.primary{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;box-shadow:0 3px 12px rgba(0,184,148,0.3)}
 .nav-link.primary:hover{opacity:0.9;transform:scale(1.02)}
 
+/* ── GUEST IDENTITY WIDGET ── */
+.guest-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.guest-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  letter-spacing: 0.02em;
+}
+.guest-nav-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lobby-logo hover glow for Issue 5 */
+.lobby-logo {
+  transition: opacity 0.12s;
+}
+.lobby-logo:hover { opacity: 0.8; }
+
+
 /* ── BODY ── */
 .lobby-body{flex:1;max-width:1000px;margin:0 auto;width:100%;padding:3rem 1.5rem}
 .lobby-hero{text-align:center;margin-bottom:3rem}
