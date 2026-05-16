@@ -10,7 +10,7 @@ if (!storedUser && !guestData) {
   window.location.href = '/';
 }
 
-const CURSOR_COLORS = ['#00B894','#4ECDC4','#FF6B6B','#FFA502','#A29BFE','#FD79A8','#00B894','#FDCB6E'];
+const CURSOR_COLORS = ['#00B894', '#4ECDC4', '#FF6B6B', '#FFA502', '#A29BFE', '#FD79A8', '#00B894', '#FDCB6E'];
 let colorIdx = 0;
 const peerColors = {};
 const peers = {};
@@ -27,11 +27,31 @@ let activeFeature = null;
 let sidebarVisible = true;
 let emojiPickerOpen = false;
 
+// ── FIX 4: Add TURN servers for real-world NAT traversal.
+// STUN-only works on open networks. Behind firewalls, mobile networks,
+// or cloud VMs (which is almost all deployments), STUN fails silently.
+// Replace the placeholder credentials with your own TURN server or a
+// free provider such as Metered (metered.ca) or Twilio NTS.
 const ICE_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ]
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // ── ADD YOUR TURN CREDENTIALS HERE ──────────────────────────
+    // Example with Metered.ca free tier:
+    // {
+    //   urls: 'turn:your-subdomain.metered.live:80',
+    //   username: 'YOUR_USERNAME',
+    //   credential: 'YOUR_CREDENTIAL'
+    // },
+    // {
+    //   urls: 'turn:your-subdomain.metered.live:443?transport=tcp',
+    //   username: 'YOUR_USERNAME',
+    //   credential: 'YOUR_CREDENTIAL'
+    // }
+    // ────────────────────────────────────────────────────────────
+  ],
+  // FIX: also request 'all' candidates so trickle ICE doesn't stall
+  iceCandidatePoolSize: 10
 };
 
 // ── SOCKET ─────────────────────────────────────────────────────
@@ -45,24 +65,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('self-name').textContent = user.name;
   addToPeopleList('self', user.name, true, user.guest);
 
-  // ── FIX Issue 1 & 2: Acquire media FIRST, THEN join the room socket.
-  // Previously join-room was emitted before getUserMedia resolved. The server
-  // responded with room-peers almost instantly, triggering callPeer() while
-  // localStream was still null — so pc.addTrack() was skipped and peers
-  // received offers with zero media tracks (black screen + no audio).
+  // Acquire media FIRST, THEN join so localStream is ready before
+  // callPeer() fires on room-peers / user-joined events.
   try { await requestMedia(true); } catch { /* user denied — join anyway */ }
   socket.emit('join-room', { roomCode, user });
-  // Init music bot — also requests current state for late joiners
+
   MusicBot.init(socket, roomCode);
 
-  // Chat keyboard
   const chatInput = document.getElementById('chat-input');
   chatInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
   });
 
-  // Close emoji picker on outside click — use composedPath() to handle
-  // SVG children of the trigger button correctly (fixes Issue 8 too)
   document.addEventListener('click', e => {
     const picker = document.getElementById('emoji-picker');
     const triggerBtn = document.getElementById('emoji-trigger-btn');
@@ -75,13 +89,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Load room info for share panel
   fetchRoomInfo();
-
-  // Init resizable sidebar
   initSidebarResize();
-
-  // Set initial grid layout (1 = just yourself)
   updateVideoGrid();
 });
 
@@ -106,7 +115,7 @@ function initSidebarResize() {
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const delta = startX - e.clientX; // dragging left increases width
+    const delta = startX - e.clientX;
     const newWidth = Math.max(200, Math.min(600, startWidth + delta));
     sidebar.style.width = newWidth + 'px';
     sidebar.style.flex = 'none';
@@ -119,7 +128,6 @@ function initSidebarResize() {
     document.body.style.userSelect = '';
   });
 
-  // Touch support
   handle.addEventListener('touchstart', e => {
     dragging = true;
     startX = e.touches[0].clientX;
@@ -161,7 +169,9 @@ function toggleMic() {
   micOn = !micOn;
   localStream.getAudioTracks().forEach(t => t.enabled = micOn);
   const btn = document.getElementById('btn-mic');
-  btn.innerHTML = micOn ? '<i data-lucide="mic" style="width:20px;height:20px"></i>' : '<i data-lucide="mic-off" style="width:20px;height:20px"></i>';
+  btn.innerHTML = micOn
+    ? '<i data-lucide="mic" style="width:20px;height:20px"></i>'
+    : '<i data-lucide="mic-off" style="width:20px;height:20px"></i>';
   btn.classList.toggle('off', !micOn);
   document.getElementById('self-mic-off').classList.toggle('hidden', micOn);
   socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
@@ -176,33 +186,57 @@ function toggleCam() {
   const tileSelf = document.getElementById('tile-self');
 
   if (camOn) {
-    // ── TURN OFF: stop the hardware track so the LED goes out ──
+    // Stop the hardware track so the LED goes out
     localStream.getVideoTracks().forEach(t => {
-      t.stop();                   // releases the camera hardware
-      localStream.removeTrack(t); // clean up from the stream object
+      t.stop();
+      localStream.removeTrack(t);
     });
     camOn = false;
-    vid.srcObject = null;         // clear the video element
+    vid.srcObject = null;
     vid.classList.remove('active');
     if (tileSelf) tileSelf.classList.add('cam-off');
     document.getElementById('self-avatar').style.display = 'flex';
-    document.getElementById('self-name').style.display  = 'block';
+    document.getElementById('self-name').style.display = 'block';
     btn.innerHTML = '<i data-lucide="camera-off" style="width:20px;height:20px"></i>';
     btn.classList.add('off');
+    // ── FIX 3a: Tell peers the camera is off (track was stopped, not
+    // just disabled, so replaceTrack with null to signal black screen)
+    Object.values(peers).forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) sender.replaceTrack(null).catch(() => { });
+    });
+    socket.emit('media-state', { roomCode, video: false, audio: micOn });
+    showToast('Camera off');
+    if (window.lucide) lucide.createIcons();
   } else {
-    // ── TURN ON: request a fresh video track ──
+    // Request a fresh video track
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(newStream => {
         const newTrack = newStream.getVideoTracks()[0];
+
+        // ── FIX 2: Properly add the new track to localStream AND
+        // replace it in every existing peer connection.
         localStream.addTrack(newTrack);
         vid.srcObject = localStream;
         vid.classList.add('active');
-        // Replace the track in every peer connection
-        replaceVideoTrack(newTrack);
+
+        // Replace in peers; if no sender exists yet (peer joined while
+        // cam was off), we need to add + renegotiate instead.
+        Object.values(peers).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
+          if (sender) {
+            sender.replaceTrack(newTrack).catch(() => { });
+          } else {
+            // No video sender — add the track and renegotiate
+            pc.addTrack(newTrack, localStream);
+            renegotiate(pc, Object.keys(peers).find(id => peers[id] === pc));
+          }
+        });
+
         camOn = true;
         if (tileSelf) tileSelf.classList.remove('cam-off');
         document.getElementById('self-avatar').style.display = 'none';
-        document.getElementById('self-name').style.display  = 'none';
+        document.getElementById('self-name').style.display = 'none';
         btn.innerHTML = '<i data-lucide="camera" style="width:20px;height:20px"></i>';
         btn.classList.remove('off');
         socket.emit('media-state', { roomCode, video: true, audio: micOn });
@@ -210,12 +244,7 @@ function toggleCam() {
         if (window.lucide) lucide.createIcons();
       })
       .catch(() => showToast('Could not restart camera'));
-    return; // early return — toast + state update inside .then()
   }
-
-  socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
-  showToast(camOn ? 'Camera on' : 'Camera off');
-  if (window.lucide) lucide.createIcons();
 }
 
 async function toggleScreen() {
@@ -225,7 +254,9 @@ async function toggleScreen() {
     const btn = document.getElementById('btn-screen');
     btn.classList.remove('active');
     btn.innerHTML = '<i data-lucide="monitor" style="width:20px;height:20px"></i>';
-    if (localStream) replaceVideoTrack(localStream.getVideoTracks()[0]);
+    // Restore webcam track (or null if cam is off)
+    const camTrack = localStream?.getVideoTracks()[0] ?? null;
+    replaceVideoTrack(camTrack);
     showToast('Screen share stopped');
     if (window.lucide) lucide.createIcons();
     return;
@@ -243,36 +274,90 @@ async function toggleScreen() {
   } catch { showToast('Screen share cancelled'); }
 }
 
+// ── FIX 1: replaceVideoTrack now handles null gracefully and logs
+// failures so you can see in DevTools if a sender is missing.
 function replaceVideoTrack(track) {
   Object.values(peers).forEach(pc => {
-    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-    if (sender && track) sender.replaceTrack(track);
+    const sender = pc.getSenders().find(s => s.track?.kind === 'video' || s.track === null);
+    if (sender) {
+      sender.replaceTrack(track).catch(err => {
+        console.warn('[replaceVideoTrack] replaceTrack failed:', err);
+      });
+    } else {
+      console.warn('[replaceVideoTrack] No video sender found for peer', pc);
+    }
   });
+}
+
+// ── FIX 3b: renegotiate — creates a new offer and sends it to a peer
+// after the track set changes (e.g. cam re-enabled after being off).
+async function renegotiate(pc, socketId) {
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('offer', { to: socketId, offer, renegotiate: true });
+  } catch (err) {
+    console.warn('[renegotiate] failed:', err);
+  }
 }
 
 // ── WebRTC ─────────────────────────────────────────────────────
 function createPeer(socketId) {
   const pc = new RTCPeerConnection(ICE_CONFIG);
-  if (localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  // ── FIX 2: Guard against null localStream; also add tracks one by
+  // one to avoid "track already added" errors on renegotiation.
+  if (localStream) {
+    localStream.getTracks().forEach(t => {
+      try { pc.addTrack(t, localStream); } catch (e) { /* already added */ }
+    });
+  }
+
   const remoteStream = new MediaStream();
   pc.ontrack = e => {
-    remoteStream.addTrack(e.track);
+    // addTrack may fire for existing tracks on renegotiation — only
+    // add the track if it isn't in the stream already.
+    if (!remoteStream.getTracks().find(t => t.id === e.track.id)) {
+      remoteStream.addTrack(e.track);
+    }
     const vid = document.getElementById('vid-' + socketId);
     if (vid) {
       vid.srcObject = remoteStream;
-      vid.classList.add('active');
+      // Only mark active if the track is live (not ended/muted)
+      if (e.track.readyState === 'live') vid.classList.add('active');
       const av = document.getElementById('av-' + socketId);
       const nm = document.getElementById('nm-' + socketId);
       if (av) av.style.display = 'none';
       if (nm) nm.style.display = 'none';
     }
   };
+
   pc.onicecandidate = e => {
     if (e.candidate) socket.emit('ice-candidate', { to: socketId, candidate: e.candidate });
   };
-  pc.onconnectionstatechange = () => {
-    if (['disconnected','failed','closed'].includes(pc.connectionState)) removePeer(socketId);
+
+  // ── FIX: log ICE failures so they surface in DevTools
+  pc.oniceconnectionstatechange = () => {
+    console.log(`[ICE ${socketId}] state:`, pc.iceConnectionState);
+    if (pc.iceConnectionState === 'failed') {
+      console.warn(`[ICE ${socketId}] Failed — restart ICE or check TURN config`);
+      pc.restartIce();
+    }
   };
+
+  pc.onconnectionstatechange = () => {
+    console.log(`[PC ${socketId}] connection:`, pc.connectionState);
+    if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) removePeer(socketId);
+  };
+
+  // ── FIX: handle incoming renegotiation offers from the remote peer
+  pc.onnegotiationneeded = async () => {
+    // Only the offerer side should react — skip if we're already in
+    // a signalling exchange (signalingState !== 'stable').
+    if (pc.signalingState !== 'stable') return;
+    await renegotiate(pc, socketId);
+  };
+
   peers[socketId] = pc;
   return pc;
 }
@@ -285,18 +370,15 @@ async function callPeer(socketId) {
 }
 
 // ── SOCKET EVENTS ──────────────────────────────────────────────
-// ── VIDEO GRID LAYOUT ────────────────────────────────────────────
-// Counts all .video-tile elements and sets data-peers on the grid
-// so the CSS attribute selectors can apply the right column layout.
 function updateVideoGrid() {
   const grid = document.getElementById('video-grid');
   if (!grid) return;
   const count = grid.querySelectorAll('.video-tile').length;
-  if      (count <= 1) grid.dataset.peers = '1';
+  if (count <= 1) grid.dataset.peers = '1';
   else if (count === 2) grid.dataset.peers = '2';
   else if (count === 3) grid.dataset.peers = '3';
   else if (count === 4) grid.dataset.peers = '4';
-  else                  grid.dataset.peers = 'many';
+  else grid.dataset.peers = 'many';
 }
 
 socket.on('room-peers', async peersArr => {
@@ -330,8 +412,22 @@ socket.on('room-count', count => {
   document.getElementById('online-count').textContent = count;
 });
 
-socket.on('offer', async ({ from, offer }) => {
-  const pc = createPeer(from);
+socket.on('offer', async ({ from, offer, renegotiate: isRenegotiate }) => {
+  // ── FIX: if we already have a PC for this peer (renegotiation),
+  // update it rather than creating a duplicate connection.
+  let pc = peers[from];
+  if (!pc) {
+    pc = createPeer(from);
+  }
+
+  // Handle glare (both sides offered simultaneously)
+  if (pc.signalingState !== 'stable') {
+    if (isRenegotiate) return; // ignore — our offer wins
+    await Promise.all([
+      pc.setLocalDescription({ type: 'rollback' }),
+    ]);
+  }
+
   await pc.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -339,11 +435,23 @@ socket.on('offer', async ({ from, offer }) => {
 });
 
 socket.on('answer', async ({ from, answer }) => {
-  if (peers[from]) await peers[from].setRemoteDescription(new RTCSessionDescription(answer));
+  const pc = peers[from];
+  if (!pc) return;
+  // Guard against stale answers arriving after state already moved on
+  if (pc.signalingState === 'have-local-offer') {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  }
 });
 
 socket.on('ice-candidate', async ({ from, candidate }) => {
-  if (peers[from]) await peers[from].addIceCandidate(new RTCIceCandidate(candidate));
+  const pc = peers[from];
+  if (!pc) return;
+  try {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  } catch (e) {
+    // Benign if remote description isn't set yet — ICE will retry
+    console.warn('[ICE] addIceCandidate error (usually harmless):', e.message);
+  }
 });
 
 socket.on('peer-media-state', ({ socketId, video, audio }) => {
@@ -391,13 +499,9 @@ function sendChat() {
   const message = input.value.trim();
   if (!message) return;
 
-  // Check for music bot commands first — they don't go to normal chat
   if (message.startsWith('/')) {
     const handled = MusicBot.parseCommand(message);
-    if (handled) {
-      input.value = '';
-      return;
-    }
+    if (handled) { input.value = ''; return; }
   }
 
   socket.emit('chat-message', { roomCode, message });
@@ -506,40 +610,26 @@ function setTab(tab) {
 // ── FEATURE PANEL ──────────────────────────────────────────────
 const FEATURES = {
   whiteboard: { title: '✏️ Whiteboard', src: '/features/whiteboard/index.html' },
-  timer:      { title: '⏱ Pomodoro Timer', src: '/features/timer/index.html' },
-  files:      { title: '📁 File Sharing', src: '/features/files/index.html' }
+  timer: { title: '⏱ Pomodoro Timer', src: '/features/timer/index.html' },
+  files: { title: '📁 File Sharing', src: '/features/files/index.html' }
 };
 
-// ── MUSIC PANEL SHORTCUT ───────────────────────────────────────
-// Opens the Chat tab (where music commands live) and highlights
-// the music-bot-hint strip so users know where to type /play.
 function openMusicPanel() {
-  // Make sure the sidebar is visible
   if (!sidebarVisible) toggleSidebar();
-
-  // Switch to the chat tab
   setTab('chat');
-
-  // Highlight the music hint strip briefly
   const hint = document.querySelector('.chat-bot-hint');
   if (hint) {
     hint.classList.add('music-hint-glow');
     setTimeout(() => hint.classList.remove('music-hint-glow'), 1800);
   }
-
-  // Focus the chat input and pre-fill /play for convenience
   const input = document.getElementById('chat-input');
   if (input) {
     input.focus();
     if (!input.value) input.value = '/play ';
-    // Put cursor at end
     input.setSelectionRange(input.value.length, input.value.length);
   }
-
-  // Mark the music button active
   document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-music')?.classList.add('active');
-
   showToast('🎵 Type /play <song name> and press Enter');
 }
 
@@ -568,7 +658,6 @@ function closeFeature() {
   document.getElementById('feat-panel-body').innerHTML = '';
 }
 
-// postMessage bridge
 window.addEventListener('message', e => {
   const { type, data } = e.data || {};
   if (!type) return;
@@ -648,11 +737,10 @@ async function fetchRoomInfo() {
     const res = await fetch(`/api/rooms/info/${roomCode}`, { headers });
     if (!res.ok) return;
     roomInfoCache = await res.json();
-    // Update header title with real room name
     if (roomInfoCache.name) {
       document.getElementById('room-name-title').textContent = roomInfoCache.name;
     }
-  } catch { /* network error — share panel will show fallback */ }
+  } catch { /* network error */ }
 }
 
 function openShareModal() {
@@ -680,27 +768,19 @@ function closeShareModal() {
   document.getElementById('share-modal').classList.remove('open');
 }
 
-function copyShareCode() {
-  navigator.clipboard.writeText(roomCode);
-  showToast('Room code copied!');
-}
-
+function copyShareCode() { navigator.clipboard.writeText(roomCode); showToast('Room code copied!'); }
 function copySharePin() {
   const pin = document.getElementById('share-pin-val').textContent;
   if (pin) { navigator.clipboard.writeText(pin); showToast('PIN copied!'); }
 }
-
 function copyShareLink() {
-  const link = document.getElementById('share-link-val').textContent;
-  navigator.clipboard.writeText(link);
+  navigator.clipboard.writeText(document.getElementById('share-link-val').textContent);
   showToast('Invite link copied!');
 }
-
 function copyShareAll() {
-  const code = roomCode;
   const pin = document.getElementById('share-pin-val')?.textContent || '(see creator)';
   const link = document.getElementById('share-link-val').textContent;
-  navigator.clipboard.writeText(`Room Code: ${code}\nPIN: ${pin}\nLink: ${link}`);
+  navigator.clipboard.writeText(`Room Code: ${roomCode}\nPIN: ${pin}\nLink: ${link}`);
   showToast('All details copied!');
 }
 
