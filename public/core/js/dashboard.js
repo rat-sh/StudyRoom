@@ -67,6 +67,7 @@ function renderRoomList(id, rooms) {
   el.innerHTML = rooms.map(r => {
     const live = new Date(r.expires_at) > new Date();
     const dateStr = new Date(r.created_at).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'});
+    const isMyRooms = id === 'my-rooms-list';
     return `<div class="room-item" onclick="window.location.href='/room/${r.code}'">
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
@@ -75,9 +76,49 @@ function renderRoomList(id, rooms) {
       </div>
       ${r.is_public ? '<span class="badge public">Public</span>' : ''}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
+      ${isMyRooms ? `<button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}')" title="Delete Room"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>` : ''}
       <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── DELETE ROOM ────────────────────────────────────────────────
+let roomToDelete = null;
+
+function openDeleteRoom(code, name) {
+  roomToDelete = code;
+  document.getElementById('delete-room-name').textContent = name;
+  document.getElementById('delete-room-code').textContent = code;
+  openModal('modal-delete');
+}
+
+async function confirmDeleteRoom() {
+  if (!roomToDelete) return;
+  const btn = document.getElementById('delete-confirm-btn');
+  btn.disabled = true;
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Deleting...';
+  
+  const headers = { 'Authorization': 'Bearer ' + token };
+  try {
+    const res = await fetch(`/api/rooms/${roomToDelete}`, { method: 'DELETE', headers });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete');
+    
+    showToast('Room permanently deleted');
+    closeModal('modal-delete');
+    loadRooms(); // Refresh lists
+    if (document.getElementById('panel-rooms').classList.contains('active')) {
+      loadMyRooms();
+    }
+  } catch (err) {
+    showToast(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    roomToDelete = null;
+  }
 }
 
 // ── CREATE ROOM ────────────────────────────────────────────────

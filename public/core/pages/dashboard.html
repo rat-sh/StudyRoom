@@ -89,7 +89,7 @@
     <!-- MY ROOMS PANEL -->
     <div class="panel" id="panel-rooms">
       <div class="panel-title">My Rooms</div>
-      <p class="panel-sub">All rooms you've created — click to rejoin</p>
+      <p class="panel-sub">All rooms you've created — click to rejoin or delete</p>
       <div class="room-list" id="my-rooms-list">
         <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
       </div>
@@ -188,6 +188,25 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-link')">Cancel</button>
       <button class="btn-go" onclick="doJoinLink()">Join →</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE ROOM CONFIRMATION MODAL -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal" style="max-width:380px">
+    <h2 style="display:flex;align-items:center;gap:8px;color:var(--danger)"><i data-lucide="trash-2" style="width:20px;height:20px"></i> Delete Room</h2>
+    <p class="sub">This will permanently delete the room and remove it from Supabase. This action cannot be undone.</p>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Room</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text)" id="delete-room-name">---</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-top:3px" id="delete-room-code">------</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-delete')">Cancel</button>
+      <button id="delete-confirm-btn" style="background:var(--danger);color:#fff;border:none;padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;gap:6px" onclick="confirmDeleteRoom()">
+        <i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete Permanently
+      </button>
     </div>
   </div>
 </div>
