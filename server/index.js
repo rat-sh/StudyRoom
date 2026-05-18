@@ -16,6 +16,10 @@ import fileRoutes from './routes/features/files.js';
 import timerRoutes from './routes/features/timer.js';
 import whiteboardRoutes from './routes/features/whiteboard.js';
 import musicRoutes from './routes/music.js';
+import userRoutes from './routes/users.js';
+import friendRoutes from './routes/friends.js';
+import todoRoutes from './routes/todos.js';
+import activityRoutes from './routes/activity.js';
 import { setupCoreHandlers } from './socket/core.js';
 
 const app = express();
@@ -25,7 +29,7 @@ const io = new Server(server, {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/api/auth', authRoutes);
@@ -35,6 +39,10 @@ app.use('/api/features/files', fileRoutes);
 app.use('/api/features/timer', timerRoutes);
 app.use('/api/features/whiteboard', whiteboardRoutes);
 app.use('/api/music', musicRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/friends', friendRoutes);
+app.use('/api/todos', todoRoutes);
+app.use('/api/activity', activityRoutes);
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/login.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/signup.html')));

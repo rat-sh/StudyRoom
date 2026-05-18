@@ -132,6 +132,14 @@
   border-radius:10px;background:var(--accent-light);color:var(--accent);
   flex-shrink:0;border:1px solid var(--accent-muted);
 }
+.lobby-hide-btn{
+  background:transparent;border:none;color:var(--muted);
+  cursor:pointer;padding:3px;border-radius:4px;
+  display:flex;transition:color 0.12s,background 0.12s;
+}
+.lobby-hide-btn:hover{
+  color:var(--text);background:var(--bg3);
+}
 .lobby-card-meta{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
 .members-count{display:flex;align-items:center;gap:6px;font-weight:500}
 
