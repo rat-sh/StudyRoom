@@ -13,7 +13,8 @@
 <div class="wb-wrap">
   <div class="wb-toolbar">
     <!-- Drawing tools -->
-    <button class="wb-tool active" id="tool-pen" onclick="setTool('pen')" title="Pen (P)"><i data-lucide="pen" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool active" id="tool-select" onclick="setTool('select')" title="Select / Move (V)"><i data-lucide="mouse-pointer-2" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" id="tool-pen" onclick="setTool('pen')" title="Pen (P)"><i data-lucide="pen" style="width:16px;height:16px"></i></button>
     <button class="wb-tool" id="tool-line" onclick="setTool('line')" title="Line"><div style="width:16px;height:2px;background:currentColor;transform:rotate(-45deg)"></div></button>
     <button class="wb-tool" id="tool-rect" onclick="setTool('rect')" title="Rectangle"><i data-lucide="square" style="width:16px;height:16px"></i></button>
     <button class="wb-tool" id="tool-circle" onclick="setTool('circle')" title="Circle"><i data-lucide="circle" style="width:16px;height:16px"></i></button>
@@ -27,11 +28,14 @@
       <input type="color" id="color-pick" value="#00B894" onchange="setColor(this.value)" title="Pick color"/>
     </div>
     <!-- Quick colors -->
-    <div style="width:18px;height:18px;border-radius:50%;background:#fff;cursor:pointer;border:1px solid var(--border2)" onclick="setColor('#ffffff');document.getElementById('color-pick').value='#ffffff'" title="White"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#000000;cursor:pointer" onclick="setColor('#000000');document.getElementById('color-pick').value='#000000'" title="Black"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#ffffff;cursor:pointer;border:1px solid var(--border2)" onclick="setColor('#ffffff');document.getElementById('color-pick').value='#ffffff'" title="White"></div>
     <div style="width:18px;height:18px;border-radius:50%;background:#FF4757;cursor:pointer" onclick="setColor('#FF4757');document.getElementById('color-pick').value='#FF4757'" title="Red"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#FFA502;cursor:pointer" onclick="setColor('#FFA502');document.getElementById('color-pick').value='#FFA502'" title="Orange"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#ECCC68;cursor:pointer" onclick="setColor('#ECCC68');document.getElementById('color-pick').value='#ECCC68'" title="Yellow"></div>
     <div style="width:18px;height:18px;border-radius:50%;background:#2ED573;cursor:pointer" onclick="setColor('#2ED573');document.getElementById('color-pick').value='#2ED573'" title="Green"></div>
-    <div style="width:18px;height:18px;border-radius:50%;background:#FFA502;cursor:pointer" onclick="setColor('#FFA502');document.getElementById('color-pick').value='#FFA502'" title="Yellow"></div>
-    <div style="width:18px;height:18px;border-radius:50%;background:#00B894;cursor:pointer" onclick="setColor('#00B894');document.getElementById('color-pick').value='#00B894'" title="Purple"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#1E90FF;cursor:pointer" onclick="setColor('#1E90FF');document.getElementById('color-pick').value='#1E90FF'" title="Blue"></div>
+    <div style="width:18px;height:18px;border-radius:50%;background:#9C88FF;cursor:pointer" onclick="setColor('#9C88FF');document.getElementById('color-pick').value='#9C88FF'" title="Purple"></div>
 
     <div class="wb-sep"></div>
 
@@ -46,11 +50,17 @@
     <!-- Actions -->
     <button class="wb-tool" onclick="undoLast()" title="Undo (Ctrl+Z)"><i data-lucide="undo-2" style="width:16px;height:16px"></i></button>
     <button class="wb-tool" onclick="clearBoard()" title="Clear all"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>
+    
+    <div class="wb-sep"></div>
+    <button class="wb-tool" onclick="exportImage()" title="Download PNG"><i data-lucide="image-down" style="width:16px;height:16px"></i></button>
+    <button class="wb-tool" onclick="exportPDF()" title="Download PDF"><i data-lucide="file-down" style="width:16px;height:16px"></i></button>
   </div>
   <div class="wb-board-area">
     <canvas id="wb-canvas"></canvas>
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="/features/whiteboard/whiteboard.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>lucide.createIcons();</script>
