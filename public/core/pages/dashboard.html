@@ -11,38 +11,45 @@
 <link rel="stylesheet" href="/core/css/dashboard.css"/>
 </head>
 <body>
-<div class="dash-layout">
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
+<div class="dash-layout" id="dash-layout">
+
+  <!-- ══ COLLAPSIBLE SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo" onclick="goHome()" title="Go to dashboard" style="cursor:pointer">
       <div class="sidebar-logo-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
-      StudyRoom
+      <span class="sidebar-logo-text">StudyRoom</span>
     </div>
+    <button class="sidebar-collapse-btn" id="sidebar-toggle" onclick="toggleSidebarCollapse()" title="Collapse sidebar">
+      <i data-lucide="chevrons-left" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>
+    </button>
 
-    <div class="nav-section-label">Main</div>
-    <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)">
-      <div class="nav-icon-wrap"><i data-lucide="home"></i></div> Home
+    <div class="nav-section-label sidebar-section-label">Main</div>
+    <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)" title="Home">
+      <div class="nav-icon-wrap"><i data-lucide="home"></i></div><span class="nav-label">Home</span>
     </div>
-    <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)">
-      <div class="nav-icon-wrap"><i data-lucide="door-open"></i></div> My Rooms
+    <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)" title="My Rooms">
+      <div class="nav-icon-wrap"><i data-lucide="door-open"></i></div><span class="nav-label">My Rooms</span>
     </div>
-    <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)">
-      <div class="nav-icon-wrap"><i data-lucide="calendar"></i></div> Schedule
+    <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)" title="Schedule">
+      <div class="nav-icon-wrap"><i data-lucide="calendar"></i></div><span class="nav-label">Schedule</span>
     </div>
-    <div class="nav-item" id="nav-lobby" onclick="window.location.href='/lobby'">
-      <div class="nav-icon-wrap"><i data-lucide="globe"></i></div> Public Lobby
+    <div class="nav-item" id="nav-friends" onclick="setPanel('friends',this)" title="Buddies">
+      <div class="nav-icon-wrap"><i data-lucide="users"></i></div><span class="nav-label">Buddies</span>
+    </div>
+    <div class="nav-item" id="nav-lobby" onclick="window.location.href='/lobby'" title="Public Lobby">
+      <div class="nav-icon-wrap"><i data-lucide="globe"></i></div><span class="nav-label">Public Lobby</span>
     </div>
 
     <hr class="sidebar-sep"/>
-    <div class="nav-section-label">Account</div>
-    <div class="nav-item" id="nav-theme" onclick="toggleTheme()">
-      <div class="nav-icon-wrap"><i data-lucide="moon" id="theme-icon"></i></div> Toggle Theme
+    <div class="nav-section-label sidebar-section-label">Account</div>
+    <div class="nav-item" id="nav-theme" onclick="toggleTheme()" title="Toggle Theme">
+      <div class="nav-icon-wrap"><i data-lucide="moon" id="theme-icon"></i></div><span class="nav-label">Toggle Theme</span>
     </div>
-    <div class="nav-item" id="nav-settings" onclick="setPanel('settings',this)">
-      <div class="nav-icon-wrap"><i data-lucide="settings"></i></div> Settings
+    <div class="nav-item" id="nav-settings" onclick="setPanel('settings',this)" title="Settings">
+      <div class="nav-icon-wrap"><i data-lucide="settings"></i></div><span class="nav-label">Settings</span>
     </div>
 
-    <div class="sidebar-user" onclick="logout()">
+    <div class="sidebar-user" onclick="logout()" title="Sign out">
       <div class="avatar" id="sb-avatar">?</div>
       <div class="sidebar-user-info">
         <strong id="sb-name">...</strong>
@@ -52,8 +59,9 @@
     </div>
   </aside>
 
-  <!-- MAIN -->
+  <!-- ══ MAIN CONTENT ══ -->
   <main class="main-content">
+
     <!-- HOME PANEL -->
     <div class="panel active" id="panel-home">
       <div class="panel-title" id="greeting">Good day 👋</div>
@@ -107,6 +115,22 @@
       <div class="schedule-list" id="schedule-list"></div>
     </div>
 
+    <!-- FRIENDS / BUDDIES PANEL -->
+    <div class="panel" id="panel-friends">
+      <div class="panel-title">Buddies</div>
+      <p class="panel-sub">Connect with study partners and share tasks</p>
+      <div class="friends-search-row">
+        <input type="text" id="friend-search-input" class="friends-search" placeholder="Search by name or email…" oninput="searchFriends(this.value)"/>
+      </div>
+      <div id="friend-search-results" class="friend-results-list hidden"></div>
+      <div class="section-label" style="margin-top:18px">My Buddies</div>
+      <div id="buddies-list" class="buddies-list">
+        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      </div>
+      <div class="section-label" style="margin-top:18px">Pending Requests</div>
+      <div id="pending-list" class="buddies-list"></div>
+    </div>
+
     <!-- SETTINGS PANEL -->
     <div class="panel" id="panel-settings">
       <div class="panel-title">Settings</div>
@@ -122,6 +146,82 @@
       </div>
     </div>
   </main>
+
+  <!-- ══ RIGHT PANEL ══ -->
+  <aside class="right-panel" id="right-panel">
+
+    <!-- Profile Card -->
+    <div class="rp-card profile-card">
+      <div class="rp-profile-header">
+        <div class="rp-avatar-wrap">
+          <div class="rp-avatar" id="rp-avatar">?</div>
+          <label class="rp-avatar-edit" for="avatar-file-input" title="Change photo">
+            <i data-lucide="camera" style="width:12px;height:12px"></i>
+          </label>
+          <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="uploadAvatar(this)"/>
+        </div>
+        <div>
+          <div class="rp-name" id="rp-name">...</div>
+          <div class="rp-email" id="rp-email"></div>
+        </div>
+        <button class="rp-settings-btn" onclick="setPanel('settings',document.getElementById('nav-settings'))" title="Settings">
+          <i data-lucide="settings" style="width:16px;height:16px"></i>
+        </button>
+      </div>
+      <div class="rp-buddies-row" id="rp-buddies-row">
+        <i data-lucide="users" style="width:13px;height:13px;color:var(--muted)"></i>
+        <span id="rp-buddy-count" style="font-size:12px;font-weight:600">0</span>
+        <span style="font-size:12px;color:var(--muted)">Buddies</span>
+      </div>
+    </div>
+
+    <!-- Activity Chart -->
+    <div class="rp-card">
+      <div class="rp-card-header">
+        <span class="rp-card-title">Activity</span>
+        <span class="rp-activity-total" id="rp-total-hours">0h</span>
+      </div>
+      <div class="activity-chart" id="activity-chart">
+        <!-- bars injected by JS -->
+      </div>
+      <div class="activity-months" id="activity-months"></div>
+    </div>
+
+    <!-- To-Do List -->
+    <div class="rp-card todo-card">
+      <div class="rp-card-header">
+        <span class="rp-card-title">To-Do List</span>
+        <button class="todo-add-btn" onclick="openAddTodo()" title="Add task">
+          <i data-lucide="plus" style="width:14px;height:14px"></i> New Task
+        </button>
+      </div>
+      <div id="todo-list" class="todo-list">
+        <div style="font-size:12px;color:var(--muted);padding:8px 0">Loading…</div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- ══ MODALS ══ -->
+
+<!-- ADD TODO MODAL -->
+<div class="modal-overlay" id="modal-todo">
+  <div class="modal" style="max-width:380px">
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="check-square" style="width:18px;height:18px"></i> New Task</h2>
+    <div class="field"><label>Task title</label><input type="text" id="todo-title-input" placeholder="e.g. Complete Ch. 4 Notes" maxlength="200"/></div>
+    <div class="field">
+      <label>Share with a buddy (optional)</label>
+      <select id="todo-share-select">
+        <option value="">Personal (just me)</option>
+        <!-- populated by JS -->
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-todo')">Cancel</button>
+      <button class="btn-go" onclick="saveTodo()">Add Task</button>
+    </div>
+  </div>
 </div>
 
 <!-- CREATE ROOM MODAL -->
@@ -192,11 +292,11 @@
   </div>
 </div>
 
-<!-- DELETE ROOM CONFIRMATION MODAL -->
+<!-- DELETE ROOM MODAL -->
 <div class="modal-overlay" id="modal-delete">
   <div class="modal" style="max-width:380px">
     <h2 style="display:flex;align-items:center;gap:8px;color:var(--danger)"><i data-lucide="trash-2" style="width:20px;height:20px"></i> Delete Room</h2>
-    <p class="sub">This will permanently delete the room and remove it from Supabase. This action cannot be undone.</p>
+    <p class="sub">This will permanently delete the room. This action cannot be undone.</p>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0">
       <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Room</div>
       <div style="font-size:14px;font-weight:700;color:var(--text)" id="delete-room-name">---</div>
@@ -224,7 +324,7 @@
         <option>English</option><option>Computer Science</option><option>Economics</option>
       </select>
     </div>
-    <div class="field"><label>Date & Time</label><input type="datetime-local" id="sch-datetime"/></div>
+    <div class="field"><label>Date &amp; Time</label><input type="datetime-local" id="sch-datetime"/></div>
     <div class="field"><label>Duration (minutes)</label>
       <select id="sch-duration">
         <option value="25">25 min — Pomodoro</option>
