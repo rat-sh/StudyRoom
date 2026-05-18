@@ -907,7 +907,7 @@ function openMusicPanel() {
     if (!input.value) input.value = '/play ';
     input.setSelectionRange(input.value.length, input.value.length);
   }
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-music')?.classList.add('active');
   showToast('🎵 Type /play <song name> and press Enter');
 }
@@ -919,7 +919,7 @@ function toggleFeature(name) {
   const btn = document.getElementById(btnId);
   if (activeFeature === name) { closeFeature(); return; }
   activeFeature = name;
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   const f = FEATURES[name];
   document.getElementById('feat-panel-title').textContent = f.title;
@@ -931,7 +931,7 @@ function toggleFeature(name) {
 
 function closeFeature() {
   activeFeature = null;
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-panel-wrap').classList.remove('open');
   document.getElementById('video-area').classList.remove('feat-open');
   document.getElementById('feat-panel-body').innerHTML = '';
