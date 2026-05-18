@@ -155,50 +155,26 @@
   max-width: 80vw;
 }
 
-/* ── VIDEO GRID — responsive by participant count ──
-   data-peers attribute is set by JS whenever the peer list changes.
-   1 peer  → full-screen single tile
-   2 peers → side-by-side
-   3-4     → 2×2 grid that fills the container WITHOUT scrolling
-   5+      → auto-fill responsive wrap
-   pinned  → large spotlight + thumbnail strip
+/* ── VIDEO GRID — Intelligent layout engine (driven by JS inline styles) ──
+   The JS engine now sets gridTemplateColumns/Rows dynamically.
+   These rules establish the base behaviour and smooth transition.
 */
 .video-grid {
   flex: 1;
   display: grid;
   gap: 8px;
-  /* Critical: overflow hidden so tiles never push outside the container */
   overflow: hidden;
-  transition: grid-template-columns 0.25s ease, grid-template-rows 0.25s ease;
+  /* GPU-accelerated smooth layout transitions */
+  transition:
+    grid-template-columns 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    grid-template-rows    0.28s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 0;
-  /* allows flex children to shrink */
-}
-
-/* Default / 1 user: single column, tile expands */
-.video-grid[data-peers="1"] {
+  /* Default safe state: single tile */
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
+  will-change: grid-template-columns, grid-template-rows;
 }
 
-/* 2 users: 50/50 split */
-.video-grid[data-peers="2"] {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr;
-}
-
-/* 3-4 users: 2×2 grid — rows fill height, NO scroll */
-.video-grid[data-peers="3"],
-.video-grid[data-peers="4"] {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-
-/* 5+ users: responsive auto-fill */
-.video-grid[data-peers="many"] {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  align-content: start;
-  overflow-y: auto;
-}
 
 /* ── PINNED / SPOTLIGHT MODE ────────────────────────────────────────
    The pinned tile takes the main area; others form a thumbnail strip
@@ -312,11 +288,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* Remove fixed min-height/aspect-ratio — let the grid rows control height */
   min-height: 0;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  /* Smooth all property changes — layout reflows, border, shadows */
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  /* GPU hint */
+  will-change: transform, opacity;
+  /* Entry animation */
+  animation: tileEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .video-tile.cam-off {
@@ -490,6 +470,7 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
+  color: var(--text2);
   transition: all 0.12s;
   position: relative;
 }
@@ -497,6 +478,7 @@
 .ctrl-btn:hover {
   background: var(--bg4);
   border-color: var(--border2);
+  color: var(--text);
   transform: scale(1.06)
 }
 
@@ -507,7 +489,8 @@
 
 .ctrl-btn.active {
   background: var(--accent-light);
-  border-color: var(--accent-muted)
+  border-color: var(--accent-muted);
+  color: var(--accent);
 }
 
 .ctrl-end {
