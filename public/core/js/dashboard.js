@@ -66,20 +66,50 @@ async function loadMe() {
 async function uploadAvatar(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { showToast('Image must be less than 2MB'); return; }
-  
-  // Convert to base64 for now since we don't have a configured Supabase storage bucket
+
+  // Validate file type
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowed.includes(file.type)) {
+    showToast('Only JPG, PNG, WebP or GIF images are allowed');
+    input.value = '';
+    return;
+  }
+
+  // Validate size — keep under 1.5MB so base64 stays under 10MB server limit
+  if (file.size > 1.5 * 1024 * 1024) {
+    showToast('Image must be smaller than 1.5 MB');
+    input.value = '';
+    return;
+  }
+
+  // Show loading state
+  const editBtn = document.querySelector('.rp-avatar-edit');
+  if (editBtn) editBtn.innerHTML = '<i data-lucide="loader" style="width:12px;height:12px"></i>';
+  if (window.lucide) lucide.createIcons();
+
   const reader = new FileReader();
   reader.onload = async (e) => {
     const dataUrl = e.target.result;
     const { ok, data } = await API.post('/api/users/avatar', { avatar_url: dataUrl }, true);
     if (ok) {
-      document.getElementById('sb-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar"/>`;
-      document.getElementById('rp-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar"/>`;
-      showToast('Avatar updated');
+      document.getElementById('sb-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      document.getElementById('rp-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      // Update cached user object
+      const u = API.user();
+      if (u) { u.avatar_url = dataUrl; localStorage.setItem('sr_user', JSON.stringify(u)); }
+      showToast('✅ Profile photo updated!');
     } else {
-      showToast('Failed to update avatar');
+      showToast('❌ ' + (data?.error || 'Failed to upload. Try a smaller image.'));
     }
+    // Restore camera icon
+    if (editBtn) editBtn.innerHTML = '<i data-lucide="camera" style="width:12px;height:12px"></i>';
+    if (window.lucide) lucide.createIcons();
+    input.value = ''; // reset so same file can be re-selected
+  };
+  reader.onerror = () => {
+    showToast('Failed to read file');
+    if (editBtn) editBtn.innerHTML = '<i data-lucide="camera" style="width:12px;height:12px"></i>';
+    if (window.lucide) lucide.createIcons();
   };
   reader.readAsDataURL(file);
 }
@@ -194,31 +224,66 @@ async function removeFriend(id) {
 // ── TO-DO LIST ─────────────────────────────────────────────────
 async function loadTodos() {
   const { ok, data } = await API.get('/api/todos', true);
-  if (ok) {
-    const list = document.getElementById('todo-list');
-    if (!data.length) {
-      list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No tasks yet.</div>';
-      return;
-    }
-    list.innerHTML = data.map(t => {
-      const checked = t.is_completed ? 'done' : '';
-      const isShared = t.shared_with_user_id !== null;
-      let sharedTag = '';
-      if (isShared) {
-        if (t.creator.id === user.id) sharedTag = `<span class="todo-shared-badge" title="Shared with ${escapeHtml(t.shared_with.name)}">Shared</span>`;
-        else sharedTag = `<span class="todo-shared-badge" title="From ${escapeHtml(t.creator.name)}">From ${escapeHtml(t.creator.name.split(' ')[0])}</span>`;
-      }
-      return `
-        <div class="todo-item">
-          <button class="todo-check ${checked}" onclick="toggleTodo('${t.id}')"></button>
-          <div class="todo-text ${checked}">${escapeHtml(t.title)}</div>
-          ${sharedTag}
-          ${t.creator.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>` : ''}
-        </div>
-      `;
-    }).join('');
-    if (window.lucide) lucide.createIcons();
+  const list = document.getElementById('todo-list');
+  if (!ok || !data) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">Failed to load tasks.</div>';
+    return;
   }
+
+  const active = data.filter(t => !t.is_completed);
+  const completed = data.filter(t => t.is_completed);
+
+  if (!data.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No tasks yet. Hit + New Task!</div>';
+    return;
+  }
+
+  function todoItemHtml(t) {
+    const isShared = t.shared_with_user_id !== null;
+    let sharedTag = '';
+    if (isShared) {
+      if (t.creator?.id === user.id)
+        sharedTag = `<span class="todo-shared-badge" title="Shared with ${escapeHtml(t.shared_with?.name || '')}">Shared</span>`;
+      else
+        sharedTag = `<span class="todo-shared-badge" title="From ${escapeHtml(t.creator?.name || '')}">From ${escapeHtml((t.creator?.name || '').split(' ')[0])}</span>`;
+    }
+    const isDone = t.is_completed;
+    return `
+      <div class="todo-item">
+        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}"></button>
+        <div class="todo-text ${isDone ? 'done' : ''}">${escapeHtml(t.title)}</div>
+        ${sharedTag}
+        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>` : ''}
+      </div>
+    `;
+  }
+
+  let html = '';
+
+  // Active tasks
+  if (active.length) {
+    html += active.map(todoItemHtml).join('');
+  } else {
+    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0">All tasks done! 🎉</div>';
+  }
+
+  // Completed history — collapsible
+  if (completed.length) {
+    html += `
+      <details style="margin-top:10px">
+        <summary style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px;padding:4px 0">
+          <i data-lucide="check-circle-2" style="width:12px;height:12px"></i>
+          Completed (${completed.length})
+        </summary>
+        <div style="margin-top:6px;opacity:0.65">
+          ${completed.map(todoItemHtml).join('')}
+        </div>
+      </details>
+    `;
+  }
+
+  list.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 function openAddTodo() {
