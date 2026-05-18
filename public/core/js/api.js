@@ -14,6 +14,20 @@ const API = {
     if (auth) headers['Authorization'] = 'Bearer ' + this.token();
     const res = await fetch(url, { headers });
     return { ok: res.ok, status: res.status, data: await res.json() };
+  },
+
+  async patch(url, body, auth = false) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (auth) headers['Authorization'] = 'Bearer ' + this.token();
+    const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(body) });
+    return { ok: res.ok, status: res.status, data: await res.json() };
+  },
+
+  async delete(url, auth = false) {
+    const headers = {};
+    if (auth) headers['Authorization'] = 'Bearer ' + this.token();
+    const res = await fetch(url, { method: 'DELETE', headers });
+    return { ok: res.ok, status: res.status, data: await res.json() };
   }
 };
 
