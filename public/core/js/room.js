@@ -388,18 +388,99 @@ async function callPeer(socketId) {
 }
 
 // ── SOCKET EVENTS ──────────────────────────────────────────────
+// ── INTELLIGENT VIDEO GRID LAYOUT ENGINE ─────────────────────────
+// Computes optimal columns/rows based on participant count + container
+// aspect ratio, mimicking Google Meet / Zoom layout intelligence.
 function updateVideoGrid() {
   const grid = document.getElementById('video-grid');
   if (!grid) return;
-  // If there's a pinned tile, stay in pinned mode (CSS class handles layout)
+
+  // If pinned spotlight mode is active, layout is handled by CSS + buildThumbStrip()
   if (pinnedSocketId) return;
-  const count = grid.querySelectorAll('.video-tile').length;
-  if (count <= 1) grid.dataset.peers = '1';
-  else if (count === 2) grid.dataset.peers = '2';
-  else if (count === 3) grid.dataset.peers = '3';
-  else if (count === 4) grid.dataset.peers = '4';
-  else grid.dataset.peers = 'many';
+
+  const tiles = Array.from(grid.querySelectorAll('.video-tile'));
+  const count = tiles.length;
+  if (count === 0) return;
+
+  // Get container dimensions for aspect-ratio-aware layout
+  const container = grid.parentElement;
+  const W = container ? container.clientWidth : window.innerWidth;
+  const H = container ? container.clientHeight : window.innerHeight;
+  const containerAspect = W / H;
+
+  let cols, rows;
+
+  if (count === 1) {
+    cols = 1; rows = 1;
+  } else if (count === 2) {
+    // Wide container → side by side; tall/portrait → stacked
+    if (containerAspect > 1.2) { cols = 2; rows = 1; }
+    else { cols = 1; rows = 2; }
+  } else if (count === 3) {
+    // Wide: 3 side-by-side or 2+1; Tall: 1+2
+    if (containerAspect > 1.6) { cols = 3; rows = 1; }
+    else { cols = 2; rows = 2; } // 2x2 with one empty — balanced
+  } else if (count === 4) {
+    cols = 2; rows = 2;
+  } else if (count === 5) {
+    // Wide: 3+2; Tall: 2+3
+    if (containerAspect > 1.2) { cols = 3; rows = 2; }
+    else { cols = 2; rows = 3; }
+  } else if (count === 6) {
+    cols = 3; rows = 2;
+  } else if (count <= 9) {
+    cols = 3; rows = 3;
+  } else if (count <= 12) {
+    cols = 4; rows = 3;
+  } else if (count <= 16) {
+    cols = 4; rows = 4;
+  } else if (count <= 20) {
+    cols = 5; rows = 4;
+  } else if (count <= 25) {
+    cols = 5; rows = 5;
+  } else {
+    // Large group: best-fit columns based on container width
+    cols = Math.ceil(Math.sqrt(count * containerAspect));
+    rows = Math.ceil(count / cols);
+  }
+
+  // Apply grid via inline style (overrides data-peers CSS) for precise control
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  grid.style.overflow = (count > 25) ? 'auto' : 'hidden';
+
+  // Remove static data-peers attribute — we now control layout via style
+  grid.removeAttribute('data-peers');
+  grid.classList.remove('layout-single', 'layout-duo', 'layout-quad', 'layout-many');
+
+  // Center the last row if it has fewer tiles than columns (avoid orphaned tiles)
+  tiles.forEach((tile, i) => {
+    const isLastRow = i >= (rows - 1) * cols;
+    const tilesInLastRow = count - (rows - 1) * cols;
+    const isOrphaned = isLastRow && tilesInLastRow < cols;
+
+    // Reset any previous centering
+    tile.style.gridColumn = '';
+    tile.style.justifySelf = '';
+
+    if (isOrphaned) {
+      // Calculate how many empty cells exist in the last row
+      const emptySlots = cols - tilesInLastRow;
+      const startCol = Math.floor(emptySlots / 2) + 1;
+      if (i === (rows - 1) * cols) {
+        // First tile in orphaned last row — center the group
+        tile.style.gridColumnStart = String(startCol);
+      }
+    }
+  });
 }
+
+// Re-run layout on window resize with debounce for performance
+let _gridResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_gridResizeTimer);
+  _gridResizeTimer = setTimeout(updateVideoGrid, 80);
+});
 
 // ── PINNING / SPOTLIGHT ────────────────────────────────────────
 function pinTile(socketId) {
