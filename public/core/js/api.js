@@ -12,7 +12,7 @@ const API = {
   async get(url, auth = false) {
     const headers = {};
     if (auth) headers['Authorization'] = 'Bearer ' + this.token();
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, cache: 'no-store' });
     return { ok: res.ok, status: res.status, data: await res.json() };
   },
 
