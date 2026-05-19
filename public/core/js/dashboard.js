@@ -17,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Greeting
   const h = new Date().getHours();
   const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]} 👋`;
+  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]}`;
 
   loadRooms();
   renderSchedule();
@@ -29,7 +29,317 @@ window.addEventListener('DOMContentLoaded', () => {
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     dtInput.min = now.toISOString().slice(0, 16);
   }
+
+  loadMe();
+  loadBuddies();
+  loadTodos();
+  loadActivity();
 });
+
+// ── SIDEBAR ────────────────────────────────────────────────────
+let sbCollapsed = false;
+function toggleSidebarCollapse() {
+  sbCollapsed = !sbCollapsed;
+  document.getElementById('dash-layout').classList.toggle('sb-collapsed', sbCollapsed);
+  const icon = document.getElementById('sidebar-toggle-icon');
+  if (icon) {
+    icon.outerHTML = sbCollapsed
+      ? '<i data-lucide="chevrons-right" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>'
+      : '<i data-lucide="chevrons-left" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ── USER PROFILE / AVATAR ──────────────────────────────────────
+async function loadMe() {
+  const { ok, data } = await API.get('/api/users/me', true);
+  if (ok && data) {
+    if (data.avatar_url) {
+      document.getElementById('sb-avatar').innerHTML = `<img src="${data.avatar_url}" alt="Avatar"/>`;
+      document.getElementById('rp-avatar').innerHTML = `<img src="${data.avatar_url}" alt="Avatar"/>`;
+    }
+    document.getElementById('rp-name').textContent = data.name;
+    document.getElementById('rp-email').textContent = data.email;
+  }
+}
+
+async function uploadAvatar(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Validate file type
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowed.includes(file.type)) {
+    showToast('Only JPG, PNG, WebP or GIF images are allowed');
+    input.value = '';
+    return;
+  }
+
+  // Validate size — keep under 1.5MB so base64 stays under 10MB server limit
+  if (file.size > 1.5 * 1024 * 1024) {
+    showToast('Image must be smaller than 1.5 MB');
+    input.value = '';
+    return;
+  }
+
+  // Show loading state
+  const editBtn = document.querySelector('.rp-avatar-edit');
+  if (editBtn) editBtn.innerHTML = '<i data-lucide="loader" style="width:12px;height:12px"></i>';
+  if (window.lucide) lucide.createIcons();
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const dataUrl = e.target.result;
+    const { ok, data } = await API.post('/api/users/avatar', { avatar_url: dataUrl }, true);
+    if (ok) {
+      document.getElementById('sb-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      document.getElementById('rp-avatar').innerHTML = `<img src="${dataUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      // Update cached user object
+      const u = API.user();
+      if (u) { u.avatar_url = dataUrl; localStorage.setItem('sr_user', JSON.stringify(u)); }
+      showToast('✅ Profile photo updated!');
+    } else {
+      showToast('❌ ' + (data?.error || 'Failed to upload. Try a smaller image.'));
+    }
+    // Restore camera icon
+    if (editBtn) editBtn.innerHTML = '<i data-lucide="camera" style="width:12px;height:12px"></i>';
+    if (window.lucide) lucide.createIcons();
+    input.value = ''; // reset so same file can be re-selected
+  };
+  reader.onerror = () => {
+    showToast('Failed to read file');
+    if (editBtn) editBtn.innerHTML = '<i data-lucide="camera" style="width:12px;height:12px"></i>';
+    if (window.lucide) lucide.createIcons();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── BUDDIES / FRIENDS ──────────────────────────────────────────
+let buddiesList = [];
+async function loadBuddies() {
+  const { ok, data } = await API.get('/api/friends', true);
+  if (ok) {
+    buddiesList = data || [];
+    renderBuddies();
+  }
+}
+
+function renderBuddies() {
+  const accepted = buddiesList.filter(b => b.status === 'accepted');
+  const pending = buddiesList.filter(b => b.status === 'pending');
+  document.getElementById('rp-buddy-count').textContent = accepted.length;
+
+  const bList = document.getElementById('buddies-list');
+  if (accepted.length === 0) {
+    bList.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">No buddies yet. Search above to add some!</div>';
+  } else {
+    bList.innerHTML = accepted.map(b => friendHtml(b)).join('');
+  }
+
+  const pList = document.getElementById('pending-list');
+  if (pending.length === 0) {
+    pList.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">No pending requests.</div>';
+  } else {
+    pList.innerHTML = pending.map(b => friendHtml(b)).join('');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function friendHtml(b) {
+  const f = b.friend;
+  const isMeRequested = b.requested_by === user.id;
+  const av = f.avatar_url ? `<img src="${f.avatar_url}"/>` : initials(f.name);
+  let actions = '';
+  if (b.status === 'accepted') {
+    actions = `<button class="friend-action-btn remove" onclick="removeFriend('${b.relationId}')">Remove</button>`;
+  } else if (isMeRequested) {
+    actions = `<span style="font-size:11px;color:var(--muted)">Requested</span>
+               <button class="friend-action-btn remove" onclick="removeFriend('${b.relationId}')" title="Cancel">✕</button>`;
+  } else {
+    actions = `<button class="friend-action-btn accept" onclick="acceptFriend('${b.relationId}')">Accept</button>
+               <button class="friend-action-btn remove" onclick="removeFriend('${b.relationId}')">Reject</button>`;
+  }
+  return `
+    <div class="friend-row">
+      <div class="friend-av">${av}</div>
+      <div style="flex:1;min-width:0;line-height:1.2">
+        <div class="friend-name">${escapeHtml(f.name)}</div>
+        <div class="friend-email">${escapeHtml(f.email)}</div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center">${actions}</div>
+    </div>
+  `;
+}
+
+let searchTimeout;
+function searchFriends(q) {
+  clearTimeout(searchTimeout);
+  const resEl = document.getElementById('friend-search-results');
+  if (!q || q.length < 2) { resEl.classList.add('hidden'); return; }
+  
+  searchTimeout = setTimeout(async () => {
+    const { ok, data } = await API.get('/api/users/search?q=' + encodeURIComponent(q), true);
+    if (!ok || !data.length) {
+      resEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">No users found.</div>';
+    } else {
+      resEl.innerHTML = data.map(u => {
+        const av = u.avatar_url ? `<img src="${u.avatar_url}"/>` : initials(u.name);
+        // check if already friend or pending
+        const existing = buddiesList.find(b => b.friend.id === u.id);
+        let btn = `<button class="friend-action-btn add" onclick="sendFriendRequest('${u.id}')">Add Buddy</button>`;
+        if (existing) {
+          if (existing.status === 'accepted') btn = `<span style="font-size:11px;color:var(--muted)">Buddy</span>`;
+          else btn = `<span style="font-size:11px;color:var(--muted)">Pending</span>`;
+        }
+        return `
+          <div class="friend-row">
+            <div class="friend-av">${av}</div>
+            <div style="flex:1;min-width:0;line-height:1.2">
+              <div class="friend-name">${escapeHtml(u.name)}</div>
+              <div class="friend-email">${escapeHtml(u.email)}</div>
+            </div>
+            ${btn}
+          </div>
+        `;
+      }).join('');
+    }
+    resEl.classList.remove('hidden');
+  }, 300);
+}
+
+async function sendFriendRequest(targetId) {
+  const { ok, data } = await API.post('/api/friends/request', { targetUserId: targetId }, true);
+  if (ok) { showToast('Request sent'); loadBuddies(); document.getElementById('friend-search-input').value = ''; document.getElementById('friend-search-results').classList.add('hidden'); }
+  else showToast(data.error || 'Failed to send request');
+}
+async function acceptFriend(id) {
+  const { ok } = await API.post(`/api/friends/accept/${id}`, {}, true);
+  if (ok) { showToast('Request accepted'); loadBuddies(); }
+}
+async function removeFriend(id) {
+  const { ok } = await API.delete(`/api/friends/${id}`, true);
+  if (ok) loadBuddies();
+}
+
+// ── TO-DO LIST ─────────────────────────────────────────────────
+async function loadTodos() {
+  const { ok, data } = await API.get('/api/todos', true);
+  const list = document.getElementById('todo-list');
+  if (!ok || !data) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">Failed to load tasks.</div>';
+    return;
+  }
+
+  const active = data.filter(t => !t.is_completed);
+  const completed = data.filter(t => t.is_completed);
+
+  if (!data.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No tasks yet. Hit + New Task!</div>';
+    return;
+  }
+
+  function todoItemHtml(t) {
+    const isShared = t.shared_with_user_id !== null;
+    let sharedTag = '';
+    if (isShared) {
+      if (t.creator?.id === user.id)
+        sharedTag = `<span class="todo-shared-badge" title="Shared with ${escapeHtml(t.shared_with?.name || '')}">Shared</span>`;
+      else
+        sharedTag = `<span class="todo-shared-badge" title="From ${escapeHtml(t.creator?.name || '')}">From ${escapeHtml((t.creator?.name || '').split(' ')[0])}</span>`;
+    }
+    const isDone = t.is_completed;
+    return `
+      <div class="todo-item">
+        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}">
+          ${isDone ? `<lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json" background="transparent" speed="1" style="width: 14px; height: 14px;" autoplay></lottie-player>` : ''}
+        </button>
+        <div class="todo-text ${isDone ? 'done' : ''}">${escapeHtml(t.title)}</div>
+        ${sharedTag}
+        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f5d1/lottie.json" background="transparent" speed="1" style="width: 16px; height: 16px;" hover></lottie-player></button>` : ''}
+      </div>
+    `;
+  }
+
+  let html = '';
+
+  // Active tasks
+  if (active.length) {
+    html += active.map(todoItemHtml).join('');
+  } else {
+    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0">All tasks done! 🎉</div>';
+  }
+
+  // Completed history — collapsible
+  if (completed.length) {
+    html += `
+      <details style="margin-top:10px">
+        <summary style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px;padding:4px 0">
+          <i data-lucide="check-circle-2" style="width:12px;height:12px"></i>
+          Completed (${completed.length})
+        </summary>
+        <div style="margin-top:6px;opacity:0.65">
+          ${completed.map(todoItemHtml).join('')}
+        </div>
+      </details>
+    `;
+  }
+
+  list.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function openAddTodo() {
+  document.getElementById('todo-title-input').value = '';
+  const select = document.getElementById('todo-share-select');
+  const accepted = buddiesList.filter(b => b.status === 'accepted');
+  select.innerHTML = '<option value="">Personal (just me)</option>' + 
+    accepted.map(b => `<option value="${b.friend.id}">Share with ${escapeHtml(b.friend.name)}</option>`).join('');
+  openModal('modal-todo');
+  setTimeout(() => document.getElementById('todo-title-input').focus(), 200);
+}
+
+async function saveTodo() {
+  const title = document.getElementById('todo-title-input').value;
+  const shared = document.getElementById('todo-share-select').value;
+  if (!title.trim()) return;
+  const { ok, data } = await API.post('/api/todos', { title, shared_with_user_id: shared || null }, true);
+  if (ok) { closeModal('modal-todo'); loadTodos(); }
+  else showToast(data.error || 'Failed to add task');
+}
+
+async function toggleTodo(id) {
+  await API.patch(`/api/todos/${id}/toggle`, {}, true);
+  loadTodos(); // reload list
+}
+
+async function deleteTodo(id) {
+  await API.delete(`/api/todos/${id}`, true);
+  loadTodos();
+}
+
+// ── ACTIVITY CHART ─────────────────────────────────────────────
+async function loadActivity() {
+  const { ok, data } = await API.get('/api/activity', true);
+  if (ok && data) {
+    document.getElementById('rp-total-hours').textContent = data.totalHours + 'h';
+    
+    // find max for scaling
+    let maxMin = 60; // minimum scale is 1 hr
+    data.chart.forEach(d => { if (d.minutes > maxMin) maxMin = d.minutes; });
+    
+    const chart = document.getElementById('activity-chart');
+    const labels = document.getElementById('activity-months');
+    chart.innerHTML = '';
+    labels.innerHTML = '';
+    
+    data.chart.forEach(d => {
+      const h = Math.max(4, (d.minutes / maxMin) * 100);
+      const hours = (d.minutes / 60).toFixed(1);
+      chart.innerHTML += `<div class="activity-bar" style="height:${h}%" data-tip="${hours}h"></div>`;
+      labels.innerHTML += `<span>${d.month}</span>`;
+    });
+  }
+}
 
 // ── NAVIGATION ─────────────────────────────────────────────────
 function setPanel(id, el) {
@@ -76,7 +386,7 @@ function renderRoomList(id, rooms) {
       </div>
       ${r.is_public ? '<span class="badge public">Public</span>' : ''}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
-      ${isMyRooms ? `<button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}')" title="Delete Room"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>` : ''}
+      <button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}')" title="Delete Room"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
       <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>
     </div>`;
   }).join('');
