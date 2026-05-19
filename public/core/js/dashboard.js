@@ -395,16 +395,18 @@ function renderRoomList(id, rooms) {
   el.innerHTML = rooms.map(r => {
     const live = new Date(r.expires_at) > new Date();
     const dateStr = new Date(r.created_at).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'});
-    const isMyRooms = id === 'my-rooms-list';
+    const isJoined = !!r.is_joined;
+    const tooltipTitle = isJoined ? 'Leave Room' : 'Delete Room';
+    const deleteIcon = isJoined ? 'log-out' : 'trash-2';
     return `<div class="room-item" onclick="window.location.href='/room/${r.code}'">
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
         <strong>${escapeHtml(r.name)}</strong>
-        <span>${dateStr}${r.is_joined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
+        <span>${dateStr}${isJoined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
       </div>
       ${r.is_public ? '<span class="badge public">Public</span>' : ''}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
-      <button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}')" title="Delete Room"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      <button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}', ${isJoined})" title="${tooltipTitle}"><i data-lucide="${deleteIcon}" style="width:14px;height:14px"></i></button>
       <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>
     </div>`;
   }).join('');
@@ -413,39 +415,94 @@ function renderRoomList(id, rooms) {
 
 // ── DELETE ROOM ────────────────────────────────────────────────
 let roomToDelete = null;
+let roomToDeleteIsJoined = false;
 
-function openDeleteRoom(code, name) {
+function openDeleteRoom(code, name, isJoined = false) {
   roomToDelete = code;
+  roomToDeleteIsJoined = isJoined;
   document.getElementById('delete-room-name').textContent = name;
   document.getElementById('delete-room-code').textContent = code;
+
+  // Dynamically swap modal content based on ownership
+  if (isJoined) {
+    document.getElementById('delete-modal-title-text').textContent = 'Leave Room';
+    document.getElementById('delete-modal-icon').setAttribute('data-lucide', 'log-out');
+    document.getElementById('delete-modal-title').style.color = 'var(--accent)';
+    document.getElementById('delete-modal-sub').textContent = 'This will remove the room from your dashboard. You can always rejoin using the invite code.';
+    document.getElementById('delete-confirm-icon').setAttribute('data-lucide', 'log-out');
+    document.getElementById('delete-confirm-text').textContent = 'Leave Room';
+    document.getElementById('delete-confirm-btn').style.background = 'var(--accent)';
+  } else {
+    document.getElementById('delete-modal-title-text').textContent = 'Delete Room';
+    document.getElementById('delete-modal-icon').setAttribute('data-lucide', 'trash-2');
+    document.getElementById('delete-modal-title').style.color = 'var(--danger)';
+    document.getElementById('delete-modal-sub').textContent = 'This will permanently delete the room. This action cannot be undone.';
+    document.getElementById('delete-confirm-icon').setAttribute('data-lucide', 'trash-2');
+    document.getElementById('delete-confirm-text').textContent = 'Delete Permanently';
+    document.getElementById('delete-confirm-btn').style.background = 'var(--danger)';
+  }
+  if (window.lucide) lucide.createIcons();
   openModal('modal-delete');
 }
 
 async function confirmDeleteRoom() {
   if (!roomToDelete) return;
+  const code = roomToDelete;
   const btn = document.getElementById('delete-confirm-btn');
   btn.disabled = true;
   const originalHtml = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner"></span> Deleting...';
-  
+  btn.innerHTML = '<span class="spinner"></span> ' + (roomToDeleteIsJoined ? 'Leaving...' : 'Deleting...');
+
+  // Helper: purge a room code from sr_joined_rooms localStorage
+  function purgeFromJoined(roomCode) {
+    const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+    const filtered = joined.filter(r => r.code !== roomCode);
+    localStorage.setItem('sr_joined_rooms', JSON.stringify(filtered));
+  }
+
+  if (roomToDeleteIsJoined) {
+    // Joined rooms: just remove from local view, no server call
+    purgeFromJoined(code);
+    showToast('✅ Room removed from your dashboard');
+    closeModal('modal-delete');
+    loadRooms();
+    if (document.getElementById('panel-rooms').classList.contains('active')) loadMyRooms();
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    roomToDelete = null;
+    roomToDeleteIsJoined = false;
+    return;
+  }
+
+  // Owner: call DELETE API
   const headers = { 'Authorization': 'Bearer ' + token };
   try {
-    const res = await fetch(`/api/rooms/${roomToDelete}`, { method: 'DELETE', headers });
+    const res = await fetch(`/api/rooms/${code}`, { method: 'DELETE', headers });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to delete');
-    
-    showToast('Room permanently deleted');
-    closeModal('modal-delete');
-    loadRooms(); // Refresh lists
-    if (document.getElementById('panel-rooms').classList.contains('active')) {
-      loadMyRooms();
+    if (!res.ok) {
+      // If 403/404 — room is already gone or not theirs. Still clean up local cache.
+      if (res.status === 403 || res.status === 404) {
+        purgeFromJoined(code);
+        showToast('✅ Room removed from dashboard');
+        closeModal('modal-delete');
+        loadRooms();
+        if (document.getElementById('panel-rooms').classList.contains('active')) loadMyRooms();
+        return;
+      }
+      throw new Error(data.error || 'Failed to delete');
     }
+    purgeFromJoined(code); // also clean from joined cache if somehow listed there
+    showToast('✅ Room permanently deleted');
+    closeModal('modal-delete');
+    loadRooms();
+    if (document.getElementById('panel-rooms').classList.contains('active')) loadMyRooms();
   } catch (err) {
-    showToast(err.message);
+    showToast('❌ ' + err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
     roomToDelete = null;
+    roomToDeleteIsJoined = false;
   }
 }
 

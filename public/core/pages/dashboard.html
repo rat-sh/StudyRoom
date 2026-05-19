@@ -308,8 +308,8 @@
 <!-- DELETE ROOM MODAL -->
 <div class="modal-overlay" id="modal-delete">
   <div class="modal" style="max-width:380px">
-    <h2 style="display:flex;align-items:center;gap:8px;color:var(--danger)"><i data-lucide="trash-2" style="width:20px;height:20px"></i> Delete Room</h2>
-    <p class="sub">This will permanently delete the room. This action cannot be undone.</p>
+    <h2 style="display:flex;align-items:center;gap:8px;color:var(--danger)" id="delete-modal-title"><i data-lucide="trash-2" style="width:20px;height:20px" id="delete-modal-icon"></i> <span id="delete-modal-title-text">Delete Room</span></h2>
+    <p class="sub" id="delete-modal-sub">This will permanently delete the room. This action cannot be undone.</p>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0">
       <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Room</div>
       <div style="font-size:14px;font-weight:700;color:var(--text)" id="delete-room-name">---</div>
@@ -318,7 +318,7 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-delete')">Cancel</button>
       <button id="delete-confirm-btn" style="background:var(--danger);color:#fff;border:none;padding:10px 20px;border-radius:var(--radius-sm);font-weight:600;cursor:pointer;transition:opacity 0.15s;display:flex;align-items:center;gap:6px" onclick="confirmDeleteRoom()">
-        <i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete Permanently
+        <i data-lucide="trash-2" style="width:14px;height:14px" id="delete-confirm-icon"></i> <span id="delete-confirm-text">Delete Permanently</span>
       </button>
     </div>
   </div>
