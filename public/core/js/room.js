@@ -1032,6 +1032,21 @@ async function fetchRoomInfo() {
     if (roomInfoCache.name) {
       document.getElementById('room-name-title').textContent = roomInfoCache.name;
     }
+    
+    if (storedUser) {
+      let joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+      joined = joined.filter(r => r.code !== roomInfoCache.code);
+      joined.unshift({
+        code: roomInfoCache.code,
+        name: roomInfoCache.name,
+        topic: roomInfoCache.topic,
+        is_public: roomInfoCache.is_public,
+        expires_at: roomInfoCache.expires_at,
+        created_at: new Date().toISOString()
+      });
+      if (joined.length > 20) joined.length = 20;
+      localStorage.setItem('sr_joined_rooms', JSON.stringify(joined));
+    }
   } catch { /* network error */ }
 }
 

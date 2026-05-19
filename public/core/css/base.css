@@ -64,6 +64,7 @@ button{cursor:pointer}
   opacity:0;transition:opacity 0.2s,transform 0.2s;
   z-index:9999;pointer-events:none;
   box-shadow:var(--shadow);
+  display:flex;align-items:center;gap:8px;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
