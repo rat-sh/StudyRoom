@@ -37,13 +37,16 @@
   <div class="room-body">
     <!-- VIDEO AREA -->
     <div class="video-area" id="video-area">
-      <div class="video-grid" id="video-grid">
+      <div class="video-grid" id="video-grid" data-peers="1">
         <div class="video-tile you" id="tile-self">
           <video id="local-video" autoplay muted playsinline></video>
           <div class="tile-avatar" id="self-avatar">?</div>
           <div class="tile-name" id="self-name">You</div>
           <div class="tile-you-tag">You</div>
           <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
+          <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('self')">
+            <i data-lucide="pin" style="width:13px;height:13px"></i>
+          </button>
         </div>
       </div>
       <div class="cursor-overlay" id="cursor-overlay"></div>
@@ -56,26 +59,6 @@
         <button class="feat-close" onclick="closeFeature()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
       </div>
       <div class="feat-panel-body" id="feat-panel-body"></div>
-    </div>
-
-    <!-- FEATURE RAIL -->
-    <div class="feat-rail">
-      <div class="feat-btn" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard">
-        <i data-lucide="pen-tool" style="width:20px;height:20px"></i><span class="feat-tooltip">Whiteboard</span>
-      </div>
-      <div class="feat-btn" id="feat-timer" onclick="toggleFeature('timer')" title="Pomodoro">
-        <i data-lucide="timer" style="width:20px;height:20px"></i><span class="feat-tooltip">Pomodoro</span>
-      </div>
-      <div class="feat-btn" id="feat-files" onclick="toggleFeature('files')" title="Files">
-        <i data-lucide="folder" style="width:20px;height:20px"></i><span class="feat-tooltip">Files</span>
-      </div>
-      <div class="feat-btn" id="feat-music" onclick="openMusicPanel()" title="Music Bot">
-        <i data-lucide="music" style="width:20px;height:20px"></i><span class="feat-tooltip">Music Bot</span>
-      </div>
-      <div style="flex:1"></div>
-      <div class="feat-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle sidebar">
-        <i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Toggle sidebar</span>
-      </div>
     </div>
 
     <!-- RESIZE HANDLE -->
@@ -111,14 +94,35 @@
     </div>
   </div>
 
-  <!-- CONTROLS BAR -->
+  <!-- CONTROLS BAR — Google Meet style -->
   <div class="controls-bar">
+    <!-- Media controls -->
     <button class="ctrl-btn" id="btn-mic" onclick="toggleMic()" title="Microphone"><i data-lucide="mic" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()" title="Camera"><i data-lucide="camera" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share"><i data-lucide="monitor" style="width:20px;height:20px"></i></button>
     <div class="ctrl-sep"></div>
+    <!-- Feature buttons (moved from rail) -->
+    <button class="ctrl-btn feat-ctrl" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard">
+      <i data-lucide="pen-tool" style="width:18px;height:18px"></i>
+      <span class="ctrl-label">Board</span>
+    </button>
+    <button class="ctrl-btn feat-ctrl" id="feat-timer" onclick="toggleFeature('timer')" title="Pomodoro">
+      <i data-lucide="timer" style="width:18px;height:18px"></i>
+      <span class="ctrl-label">Timer</span>
+    </button>
+    <button class="ctrl-btn feat-ctrl" id="feat-files" onclick="toggleFeature('files')" title="Files">
+      <i data-lucide="folder" style="width:18px;height:18px"></i>
+      <span class="ctrl-label">Files</span>
+    </button>
+    <button class="ctrl-btn feat-ctrl" id="feat-music" onclick="openMusicPanel()" title="Music Bot">
+      <i data-lucide="music" style="width:18px;height:18px"></i>
+      <span class="ctrl-label">Music</span>
+    </button>
+    <div class="ctrl-sep"></div>
+    <!-- Reactions & extras -->
     <button class="ctrl-btn" id="btn-hand" onclick="sendReaction('✋')" title="Raise Hand"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions"><i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i></button>
+    <button class="ctrl-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar"><i data-lucide="panel-right" style="width:20px;height:20px"></i></button>
     <div class="ctrl-sep"></div>
     <button class="ctrl-btn" onclick="toggleTheme()" title="Toggle Theme"><i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i></button>
     <button class="ctrl-end" onclick="leaveRoom()">End Call</button>

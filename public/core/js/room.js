@@ -17,6 +17,7 @@ const peers = {};
 const peerTiles = {};
 const peerInfo = {};
 const cursors = {};
+const dataChannels = {}; // socketId → RTCDataChannel (for file transfer)
 
 let localStream = null;
 let screenStream = null;
@@ -26,6 +27,9 @@ let screenSharing = false;
 let activeFeature = null;
 let sidebarVisible = true;
 let emojiPickerOpen = false;
+
+// Pinning / Spotlight state
+let pinnedSocketId = null; // null = normal grid, 'self' or socketId = pinned
 
 // ── FIX 4: Add TURN servers for real-world NAT traversal.
 // STUN-only works on open networks. Behind firewalls, mobile networks,
@@ -254,9 +258,13 @@ async function toggleScreen() {
     const btn = document.getElementById('btn-screen');
     btn.classList.remove('active');
     btn.innerHTML = '<i data-lucide="monitor" style="width:20px;height:20px"></i>';
-    // Restore webcam track (or null if cam is off)
     const camTrack = localStream?.getVideoTracks()[0] ?? null;
     replaceVideoTrack(camTrack);
+    // Remove screen-share styling from self tile
+    document.getElementById('tile-self')?.classList.remove('screen-share-tile');
+    socket.emit('screen-share-stopped', { roomCode });
+    // Unpin if self was pinned as screen share
+    if (pinnedSocketId === 'self') unpinAll();
     showToast('Screen share stopped');
     if (window.lucide) lucide.createIcons();
     return;
@@ -269,6 +277,10 @@ async function toggleScreen() {
     btn.innerHTML = '<i data-lucide="square" style="width:20px;height:20px;fill:currentColor"></i>';
     replaceVideoTrack(screenStream.getVideoTracks()[0]);
     screenStream.getVideoTracks()[0].onended = () => toggleScreen();
+    // Mark self tile as screen share + auto-pin for local user
+    document.getElementById('tile-self')?.classList.add('screen-share-tile');
+    socket.emit('screen-share-started', { roomCode });
+    pinTile('self'); // spotlight own screen for local user
     showToast('Screen sharing started');
     if (window.lucide) lucide.createIcons();
   } catch { showToast('Screen share cancelled'); }
@@ -358,6 +370,12 @@ function createPeer(socketId) {
     await renegotiate(pc, socketId);
   };
 
+  // ── Data Channel for file transfer ─────────────────────────────
+  // Offerer creates the channel; answerer receives it via ondatachannel.
+  const dc = pc.createDataChannel('fileTransfer', { ordered: true });
+  setupDataChannel(dc, socketId);
+  pc.ondatachannel = e => setupDataChannel(e.channel, socketId);
+
   peers[socketId] = pc;
   return pc;
 }
@@ -370,15 +388,260 @@ async function callPeer(socketId) {
 }
 
 // ── SOCKET EVENTS ──────────────────────────────────────────────
+// ── INTELLIGENT VIDEO GRID LAYOUT ENGINE ─────────────────────────
+// Computes optimal columns/rows based on participant count + container
+// aspect ratio, mimicking Google Meet / Zoom layout intelligence.
 function updateVideoGrid() {
   const grid = document.getElementById('video-grid');
   if (!grid) return;
-  const count = grid.querySelectorAll('.video-tile').length;
-  if (count <= 1) grid.dataset.peers = '1';
-  else if (count === 2) grid.dataset.peers = '2';
-  else if (count === 3) grid.dataset.peers = '3';
-  else if (count === 4) grid.dataset.peers = '4';
-  else grid.dataset.peers = 'many';
+
+  // If pinned spotlight mode is active, layout is handled by CSS + buildThumbStrip()
+  if (pinnedSocketId) return;
+
+  const tiles = Array.from(grid.querySelectorAll('.video-tile'));
+  const count = tiles.length;
+  if (count === 0) return;
+
+  // Get container dimensions for aspect-ratio-aware layout
+  const container = grid.parentElement;
+  const W = container ? container.clientWidth : window.innerWidth;
+  const H = container ? container.clientHeight : window.innerHeight;
+  const containerAspect = W / H;
+
+  let cols, rows;
+
+  if (count === 1) {
+    cols = 1; rows = 1;
+  } else if (count === 2) {
+    // Wide container → side by side; tall/portrait → stacked
+    if (containerAspect > 1.2) { cols = 2; rows = 1; }
+    else { cols = 1; rows = 2; }
+  } else if (count === 3) {
+    // Wide: 3 side-by-side or 2+1; Tall: 1+2
+    if (containerAspect > 1.6) { cols = 3; rows = 1; }
+    else { cols = 2; rows = 2; } // 2x2 with one empty — balanced
+  } else if (count === 4) {
+    cols = 2; rows = 2;
+  } else if (count === 5) {
+    // Wide: 3+2; Tall: 2+3
+    if (containerAspect > 1.2) { cols = 3; rows = 2; }
+    else { cols = 2; rows = 3; }
+  } else if (count === 6) {
+    cols = 3; rows = 2;
+  } else if (count <= 9) {
+    cols = 3; rows = 3;
+  } else if (count <= 12) {
+    cols = 4; rows = 3;
+  } else if (count <= 16) {
+    cols = 4; rows = 4;
+  } else if (count <= 20) {
+    cols = 5; rows = 4;
+  } else if (count <= 25) {
+    cols = 5; rows = 5;
+  } else {
+    // Large group: best-fit columns based on container width
+    cols = Math.ceil(Math.sqrt(count * containerAspect));
+    rows = Math.ceil(count / cols);
+  }
+
+  // Apply grid via inline style (overrides data-peers CSS) for precise control
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  grid.style.overflow = (count > 25) ? 'auto' : 'hidden';
+
+  // Remove static data-peers attribute — we now control layout via style
+  grid.removeAttribute('data-peers');
+  grid.classList.remove('layout-single', 'layout-duo', 'layout-quad', 'layout-many');
+
+  // Center the last row if it has fewer tiles than columns (avoid orphaned tiles)
+  tiles.forEach((tile, i) => {
+    const isLastRow = i >= (rows - 1) * cols;
+    const tilesInLastRow = count - (rows - 1) * cols;
+    const isOrphaned = isLastRow && tilesInLastRow < cols;
+
+    // Reset any previous centering
+    tile.style.gridColumn = '';
+    tile.style.justifySelf = '';
+
+    if (isOrphaned) {
+      // Calculate how many empty cells exist in the last row
+      const emptySlots = cols - tilesInLastRow;
+      const startCol = Math.floor(emptySlots / 2) + 1;
+      if (i === (rows - 1) * cols) {
+        // First tile in orphaned last row — center the group
+        tile.style.gridColumnStart = String(startCol);
+      }
+    }
+  });
+}
+
+// Re-run layout on window resize with debounce for performance
+let _gridResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_gridResizeTimer);
+  _gridResizeTimer = setTimeout(updateVideoGrid, 80);
+});
+
+// ── PINNING / SPOTLIGHT ────────────────────────────────────────
+function pinTile(socketId) {
+  const grid = document.getElementById('video-grid');
+  if (!grid) return;
+
+  // Remove previous pinned state
+  grid.querySelectorAll('.video-tile').forEach(t => {
+    t.classList.remove('pinned-tile');
+    const btn = t.querySelector('.tile-pin-btn');
+    if (btn) btn.classList.remove('pinned-active');
+  });
+
+  if (pinnedSocketId === socketId) {
+    // Toggle off — unpin
+    unpinAll(); return;
+  }
+
+  pinnedSocketId = socketId;
+  const tileId = socketId === 'self' ? 'tile-self' : 'tile-' + socketId;
+  const tile = document.getElementById(tileId);
+  if (tile) {
+    tile.classList.add('pinned-tile');
+    const btn = tile.querySelector('.tile-pin-btn');
+    if (btn) btn.classList.add('pinned-active');
+  }
+  grid.classList.add('pinned');
+  buildThumbStrip();
+}
+
+function unpinAll() {
+  pinnedSocketId = null;
+  const grid = document.getElementById('video-grid');
+  if (!grid) return;
+  grid.classList.remove('pinned');
+  grid.querySelectorAll('.video-tile').forEach(t => {
+    t.classList.remove('pinned-tile');
+    const btn = t.querySelector('.tile-pin-btn');
+    if (btn) btn.classList.remove('pinned-active');
+  });
+  // Remove thumb strip
+  const strip = document.getElementById('thumb-strip');
+  if (strip) strip.remove();
+  updateVideoGrid();
+}
+
+function buildThumbStrip() {
+  // Remove existing strip
+  const old = document.getElementById('thumb-strip');
+  if (old) old.remove();
+
+  const videoArea = document.getElementById('video-area');
+  const strip = document.createElement('div');
+  strip.className = 'thumb-strip';
+  strip.id = 'thumb-strip';
+
+  // Add all tiles EXCEPT the pinned one as thumbnails
+  const grid = document.getElementById('video-grid');
+  grid.querySelectorAll('.video-tile').forEach(tile => {
+    if (tile.classList.contains('pinned-tile')) return;
+    const sid = tile.id.replace('tile-', '');
+    const nameEl = tile.querySelector('[id^="nm-"], .tile-name');
+    const vidEl = tile.querySelector('video');
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb-tile';
+    thumb.title = 'Click to spotlight';
+    if (vidEl && vidEl.srcObject) {
+      const v = document.createElement('video');
+      v.autoplay = true; v.muted = (sid === 'self'); v.playsInline = true;
+      v.srcObject = vidEl.srcObject;
+      thumb.appendChild(v);
+    }
+    const lbl = document.createElement('div');
+    lbl.className = 'thumb-name';
+    lbl.textContent = nameEl?.textContent || sid;
+    thumb.appendChild(lbl);
+    thumb.addEventListener('click', () => pinTile(sid));
+    strip.appendChild(thumb);
+  });
+
+  videoArea.appendChild(strip);
+}
+
+// ── WEBRTC DATA CHANNEL — FILE TRANSFER ────────────────────────
+const fileReceiveBuffers = {}; // socketId → { meta, chunks }
+
+function setupDataChannel(dc, socketId) {
+  dc.binaryType = 'arraybuffer';
+  dataChannels[socketId] = dc;
+
+  dc.onmessage = e => {
+    if (typeof e.data === 'string') {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'file-meta') {
+        fileReceiveBuffers[socketId] = { meta: msg, chunks: [] };
+      } else if (msg.type === 'file-eof') {
+        const buf = fileReceiveBuffers[socketId];
+        if (!buf) return;
+        const blob = new Blob(buf.chunks, { type: buf.meta.fileType });
+        const reader = new FileReader();
+        reader.onload = ev => {
+          // Forward to the files iframe
+          const frame = document.querySelector('#feat-panel-body iframe');
+          if (frame) {
+            frame.contentWindow.postMessage({
+              type: 'FILE_RECEIVED',
+              data: {
+                name: buf.meta.fileName,
+                size: buf.meta.fileSize,
+                type: buf.meta.fileType,
+                data: ev.target.result,
+                sharedBy: peerInfo[socketId]?.name || 'Peer',
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              }
+            }, '*');
+          }
+          showToast(`📄 ${buf.meta.fileName} received`);
+        };
+        reader.readAsDataURL(blob);
+        delete fileReceiveBuffers[socketId];
+      }
+    } else {
+      // Binary chunk
+      if (fileReceiveBuffers[socketId]) {
+        fileReceiveBuffers[socketId].chunks.push(e.data);
+      }
+    }
+  };
+}
+
+// Send a file to ALL connected peers via their data channels
+function sendFileToPeers(file) {
+  const CHUNK = 16384; // 16 KB
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const buffer = ev.target.result;
+    const meta = JSON.stringify({
+      type: 'file-meta',
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+    const eof = JSON.stringify({ type: 'file-eof' });
+
+    for (const [sid, dc] of Object.entries(dataChannels)) {
+      if (dc.readyState !== 'open') continue;
+      dc.send(meta);
+      let offset = 0;
+      while (offset < buffer.byteLength) {
+        // Respect bufferedAmount to avoid overflow
+        if (dc.bufferedAmount > 1024 * 1024) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+        dc.send(buffer.slice(offset, offset + CHUNK));
+        offset += CHUNK;
+      }
+      dc.send(eof);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 socket.on('room-peers', async peersArr => {
@@ -461,6 +724,19 @@ socket.on('peer-media-state', ({ socketId, video, audio }) => {
   if (vid) vid.classList.toggle('active', video && vid.srcObject);
   const tile = document.getElementById('tile-' + socketId);
   if (tile) tile.classList.toggle('cam-off', !video);
+});
+
+// ── Screen share spotlight — from remote peers ─────────────────
+socket.on('peer-screen-share-started', ({ socketId }) => {
+  const tile = document.getElementById('tile-' + socketId);
+  if (tile) tile.classList.add('screen-share-tile');
+  pinTile(socketId); // auto-spotlight for everyone
+  showToast(`${peerInfo[socketId]?.name || 'Someone'} started screen sharing`);
+});
+socket.on('peer-screen-share-stopped', ({ socketId }) => {
+  const tile = document.getElementById('tile-' + socketId);
+  if (tile) tile.classList.remove('screen-share-tile');
+  if (pinnedSocketId === socketId) unpinAll();
 });
 
 // ── CURSORS ────────────────────────────────────────────────────
@@ -585,9 +861,12 @@ function toggleSidebar() {
   sidebar.classList.toggle('collapsed', !sidebarVisible);
   if (handle) handle.style.display = sidebarVisible ? '' : 'none';
   const btn = document.getElementById('feat-collapse-sidebar');
-  btn.innerHTML = sidebarVisible
-    ? '<i data-lucide="chevron-right" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Hide sidebar</span>'
-    : '<i data-lucide="chevron-left" id="sidebar-icon" style="width:20px;height:20px"></i><span class="feat-tooltip">Show sidebar</span>';
+  if (btn) {
+    btn.innerHTML = sidebarVisible
+      ? '<i data-lucide="panel-right" style="width:20px;height:20px"></i>'
+      : '<i data-lucide="panel-right-close" style="width:20px;height:20px"></i>';
+    btn.title = sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar';
+  }
   if (window.lucide) lucide.createIcons();
 }
 
@@ -628,7 +907,7 @@ function openMusicPanel() {
     if (!input.value) input.value = '/play ';
     input.setSelectionRange(input.value.length, input.value.length);
   }
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-music')?.classList.add('active');
   showToast('🎵 Type /play <song name> and press Enter');
 }
@@ -640,7 +919,7 @@ function toggleFeature(name) {
   const btn = document.getElementById(btnId);
   if (activeFeature === name) { closeFeature(); return; }
   activeFeature = name;
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   const f = FEATURES[name];
   document.getElementById('feat-panel-title').textContent = f.title;
@@ -652,7 +931,7 @@ function toggleFeature(name) {
 
 function closeFeature() {
   activeFeature = null;
-  document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-panel-wrap').classList.remove('open');
   document.getElementById('video-area').classList.remove('feat-open');
   document.getElementById('feat-panel-body').innerHTML = '';
@@ -666,6 +945,16 @@ window.addEventListener('message', e => {
   if (type === 'TIMER_START') socket.emit('timer-start', { roomCode, duration: data.duration });
   if (type === 'TIMER_STOP') socket.emit('timer-stop', { roomCode });
   if (type === 'TIMER_REQUEST') socket.emit('timer-request', { roomCode });
+  // FILE_SHARE: files.js iframe sends us a file → we send via WebRTC data channels
+  if (type === 'FILE_SHARE') {
+    // Convert dataUrl back to a File-like object for sendFileToPeers
+    fetch(data.dataUrl)
+      .then(r => r.blob())
+      .then(blob => {
+        const file = new File([blob], data.name, { type: data.type });
+        sendFileToPeers(file);
+      });
+  }
 });
 
 socket.on('whiteboard-draw', ({ data }) => {
@@ -698,6 +987,9 @@ function addVideoTile(socketId, name, guest = false) {
     <div class="tile-name" id="nm-${socketId}">${escapeHtml(name)}</div>
     <div class="tile-mic-off hidden" id="mic-${socketId}"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
     ${guest ? `<div class="tile-guest-tag">Guest</div>` : ''}
+    <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('${socketId}')">
+      <i data-lucide="pin" style="width:13px;height:13px"></i>
+    </button>
   `;
   grid.appendChild(div);
   peerTiles[socketId] = div;

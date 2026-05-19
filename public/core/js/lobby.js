@@ -1,5 +1,14 @@
 let allRooms = [];
 let selectedCode = null;
+let hiddenRooms = JSON.parse(localStorage.getItem('sr_hidden_rooms') || '[]');
+
+function deleteFromMyEnd(code) {
+  if (!hiddenRooms.includes(code)) {
+    hiddenRooms.push(code);
+    localStorage.setItem('sr_hidden_rooms', JSON.stringify(hiddenRooms));
+  }
+  filterRooms();
+}
 
 // ── GUEST IDENTITY (Issue 4) ──────────────────────────────────────
 // Adjectives + animals produce names like "CuriousTiger42"
@@ -90,12 +99,14 @@ function filterRooms() {
 
 function renderRooms(rooms) {
   const grid = document.getElementById('rooms-grid');
-  if (!rooms.length) {
+  const visibleRooms = rooms.filter(r => !hiddenRooms.includes(r.code));
+  
+  if (!visibleRooms.length) {
     grid.innerHTML = '<div class="lobby-empty"><div class="empty-icon"><i data-lucide="book-x" style="width:32px;height:32px"></i></div><p>No public rooms right now.<br>Be the first to create one!</p></div>';
     if (window.lucide) lucide.createIcons();
     return;
   }
-  grid.innerHTML = rooms.map(r => {
+  grid.innerHTML = visibleRooms.map(r => {
     const count = r.member_count || 0;
     const max = r.max_members || 10;
     const full = count >= max;
@@ -103,7 +114,12 @@ function renderRooms(rooms) {
     return `<div class="lobby-card">
       <div class="lobby-card-top">
         <div class="lobby-card-name">${escapeHtml(r.name)}</div>
-        <div class="topic-badge">${escapeHtml(r.topic || 'General')}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="topic-badge">${escapeHtml(r.topic || 'General')}</div>
+          <button class="lobby-hide-btn" onclick="event.stopPropagation(); deleteFromMyEnd('${r.code}')" title="Delete from my view">
+            <i data-lucide="trash-2" style="width:14px;height:14px;color:var(--danger)"></i>
+          </button>
+        </div>
       </div>
       <div class="members-bar"><div class="members-bar-fill ${full ? 'full' : ''}" style="width:${pct}%"></div></div>
       <div class="lobby-card-meta">
