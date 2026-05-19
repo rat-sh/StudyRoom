@@ -17,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Greeting
   const h = new Date().getHours();
   const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]} 👋`;
+  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]}`;
 
   loadRooms();
   renderSchedule();
@@ -250,10 +250,12 @@ async function loadTodos() {
     const isDone = t.is_completed;
     return `
       <div class="todo-item">
-        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}"></button>
+        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}">
+          ${isDone ? `<lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json" background="transparent" speed="1" style="width: 14px; height: 14px;" autoplay></lottie-player>` : ''}
+        </button>
         <div class="todo-text ${isDone ? 'done' : ''}">${escapeHtml(t.title)}</div>
         ${sharedTag}
-        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>` : ''}
+        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f5d1/lottie.json" background="transparent" speed="1" style="width: 16px; height: 16px;" hover></lottie-player></button>` : ''}
       </div>
     `;
   }

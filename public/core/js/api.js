@@ -34,7 +34,19 @@ const API = {
 function showToast(msg, duration = 2500) {
   const t = document.getElementById('toast');
   if (!t) return;
-  t.textContent = msg;
+  
+  let lottieUrl = 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f514/lottie.json'; // Bell
+  let cleanMsg = msg;
+  
+  if (msg.includes('✅')) {
+    lottieUrl = 'https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json'; // Checkmark
+    cleanMsg = msg.replace('✅', '').trim();
+  } else if (msg.includes('❌')) {
+    lottieUrl = 'https://fonts.gstatic.com/s/e/notoemoji/latest/274c/lottie.json'; // Cross
+    cleanMsg = msg.replace('❌', '').trim();
+  }
+
+  t.innerHTML = `<lottie-player src="${lottieUrl}" background="transparent" speed="1" style="width: 18px; height: 18px;" loop autoplay></lottie-player><span>${escapeHtml(cleanMsg)}</span>`;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
 }
