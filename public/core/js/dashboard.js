@@ -354,24 +354,42 @@ function setPanel(id, el) {
 // ── ROOMS ──────────────────────────────────────────────────────
 async function loadRooms() {
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  if (ok) renderRoomList('recent-rooms', data);
+  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  let all = (ok && data) ? [...data] : [];
+  joined.forEach(jr => {
+    if (!all.find(r => r.code === jr.code)) {
+      all.push({ ...jr, is_joined: true });
+    }
+  });
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (all.length > 0) renderRoomList('recent-rooms', all);
   else document.getElementById('recent-rooms').innerHTML =
-    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet. Create one!</div>';
+    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet. Create or join one!</div>';
 }
 
 async function loadMyRooms() {
   document.getElementById('my-rooms-list').innerHTML =
     '<div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>';
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  if (ok) renderRoomList('my-rooms-list', data);
+  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  let all = (ok && data) ? [...data] : [];
+  joined.forEach(jr => {
+    if (!all.find(r => r.code === jr.code)) {
+      all.push({ ...jr, is_joined: true });
+    }
+  });
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (all.length > 0) renderRoomList('my-rooms-list', all);
   else document.getElementById('my-rooms-list').innerHTML =
-    '<div style="font-size:13px;color:var(--muted);padding:12px 0">Could not load rooms.</div>';
+    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet.</div>';
 }
 
 function renderRoomList(id, rooms) {
   const el = document.getElementById(id);
   if (!rooms || !rooms.length) {
-    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet — create one above!</div>';
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet — create or join one above!</div>';
     return;
   }
   el.innerHTML = rooms.map(r => {
@@ -382,7 +400,7 @@ function renderRoomList(id, rooms) {
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
         <strong>${escapeHtml(r.name)}</strong>
-        <span>${dateStr} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
+        <span>${dateStr}${r.is_joined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
       </div>
       ${r.is_public ? '<span class="badge public">Public</span>' : ''}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
