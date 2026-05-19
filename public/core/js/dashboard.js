@@ -554,38 +554,40 @@ function deleteSchedule(id) {
 }
 
 function renderSchedule() {
-  const list = document.getElementById('schedule-list');
-  if (!list) return;
   const now = new Date();
   // Filter out past sessions older than 1h
   scheduleData = scheduleData.filter(s => new Date(s.datetime) > new Date(now - 3600000));
   localStorage.setItem('sr_schedule', JSON.stringify(scheduleData));
 
+  const lists = [document.getElementById('schedule-list'), document.getElementById('home-schedule-list')].filter(Boolean);
+  if (!lists.length) return;
+
+  let html = '';
   if (!scheduleData.length) {
-    list.innerHTML = `<div class="schedule-empty">
+    html = `<div class="schedule-empty">
       <div class="empty-icon"><i data-lucide="calendar" style="width:32px;height:32px"></i></div>
       <h3>No sessions yet</h3>
       <p>Schedule study sessions to stay on track</p>
       <button class="btn-go" style="max-width:180px;border-radius:var(--radius-sm)" onclick="openScheduleModal()">＋ Add Session</button>
     </div>`;
-    if (window.lucide) lucide.createIcons();
-    return;
+  } else {
+    html = scheduleData.map(s => {
+      const dt = new Date(s.datetime);
+      const dateStr = dt.toLocaleDateString('en', {weekday:'short',month:'short',day:'numeric'});
+      const timeStr = dt.toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit'});
+      const isPast = dt < now;
+      return `<div class="schedule-item" style="${isPast ? 'opacity:0.5' : ''}">
+        <div class="schedule-time">${timeStr}<br/><span style="font-size:10px;font-weight:400;color:var(--muted)">${dateStr}</span></div>
+        <div class="schedule-info">
+          <strong>${escapeHtml(s.title)}</strong>
+          <span>${escapeHtml(s.topic)} · ${s.duration} min${s.notes ? ' · ' + escapeHtml(s.notes.slice(0,40)) : ''}</span>
+        </div>
+        <button class="schedule-delete" onclick="deleteSchedule(${s.id})" title="Remove"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>`;
+    }).join('');
   }
 
-  list.innerHTML = scheduleData.map(s => {
-    const dt = new Date(s.datetime);
-    const dateStr = dt.toLocaleDateString('en', {weekday:'short',month:'short',day:'numeric'});
-    const timeStr = dt.toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit'});
-    const isPast = dt < now;
-    return `<div class="schedule-item" style="${isPast ? 'opacity:0.5' : ''}">
-      <div class="schedule-time">${timeStr}<br/><span style="font-size:10px;font-weight:400;color:var(--muted)">${dateStr}</span></div>
-      <div class="schedule-info">
-        <strong>${escapeHtml(s.title)}</strong>
-        <span>${escapeHtml(s.topic)} · ${s.duration} min${s.notes ? ' · ' + escapeHtml(s.notes.slice(0,40)) : ''}</span>
-      </div>
-      <button class="schedule-delete" onclick="deleteSchedule(${s.id})" title="Remove"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
-    </div>`;
-  }).join('');
+  lists.forEach(list => list.innerHTML = html);
   if (window.lucide) lucide.createIcons();
 }
 
