@@ -352,7 +352,7 @@
   background:transparent;transition:all 0.12s;
 }
 .todo-check.done{ background:var(--accent);border-color:var(--accent); }
-.todo-check.done::after{ content:'✓';color:#fff;font-size:10px;font-weight:700; }
+.todo-check.done::after{ content:none; }
 .todo-text{ flex:1;font-size:12px;color:var(--text);line-height:1.4; }
 .todo-text.done{ text-decoration:line-through;color:var(--muted); }
 .todo-shared-badge{
