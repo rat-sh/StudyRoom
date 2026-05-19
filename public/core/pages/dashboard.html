@@ -64,33 +64,46 @@
 
     <!-- HOME PANEL -->
     <div class="panel active" id="panel-home">
-      <div class="panel-title" id="greeting">Good day 👋</div>
+    <div class="panel-title" style="display:flex;align-items:center;gap:8px">
+      <span id="greeting">Good day</span>
+      <lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f44b/lottie.json" background="transparent" speed="1" style="width: 32px; height: 32px;" loop autoplay></lottie-player>
+    </div>
       <p class="panel-sub">Ready to focus? Create a room or jump into an existing one.</p>
       <div class="action-grid">
         <div class="action-card create" onclick="openCreate()">
-          <div class="card-icon-wrap"><i data-lucide="sparkles"></i></div>
+          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2728/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
           <h3>Create a Room</h3>
           <p>Start a private session and share the code with friends</p>
         </div>
         <div class="action-card join" onclick="openJoin()">
-          <div class="card-icon-wrap"><i data-lucide="key"></i></div>
+          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f680/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
           <h3>Join with Code</h3>
           <p>Enter a room code and PIN to jump in instantly</p>
         </div>
         <div class="action-card lobby" onclick="window.location.href='/lobby'">
-          <div class="card-icon-wrap"><i data-lucide="globe"></i></div>
+          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f30d/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
           <h3>Public Lobby</h3>
           <p>Browse and join live public study rooms by topic</p>
         </div>
         <div class="action-card via-link" onclick="openJoinLink()">
-          <div class="card-icon-wrap"><i data-lucide="link"></i></div>
+          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f91d/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
           <h3>Join via Link</h3>
           <p>Paste an invite link to enter a room directly</p>
         </div>
       </div>
-      <div class="section-label">Recent Rooms</div>
-      <div class="room-list" id="recent-rooms">
-        <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+      <div class="home-bottom-grid">
+        <div>
+          <div class="section-label">Recent Rooms</div>
+          <div class="room-list" id="recent-rooms">
+            <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+          </div>
+        </div>
+        <div>
+          <div class="section-label">Upcoming Sessions</div>
+          <div class="schedule-list" id="home-schedule-list">
+            <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -346,5 +359,6 @@
 <script src="/core/js/dashboard.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>lucide.createIcons();</script>
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 </body>
 </html>

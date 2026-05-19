@@ -359,9 +359,26 @@ window.exportPDF = function() {
   pdf.save(`whiteboard-${roomCode || 'export'}.pdf`);
 };
 
-// ── KEYBOARD ACTIONS ──────────────────────────────────────────
+// ── KEYBOARD ACTIONS & UNDO ────────────────────────────────────
+window.undoLast = function() {
+  const objects = canvas.getObjects();
+  if (objects.length > 0) {
+    const lastObj = objects[objects.length - 1];
+    canvas.remove(lastObj);
+    removeObjectRemote(lastObj.id);
+    saveState();
+  }
+};
+
 document.addEventListener('keydown', e => {
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || (canvas.getActiveObject() && canvas.getActiveObject().isEditing)) return;
+  
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    undoLast();
+    return;
+  }
+  
   if (e.key === 'v' || e.key === 'V') setTool('select');
   if (e.key === 'p' || e.key === 'P') setTool('pen');
   if (e.key === 'e' || e.key === 'E') setTool('eraser');

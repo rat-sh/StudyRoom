@@ -17,7 +17,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Greeting
   const h = new Date().getHours();
   const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]} 👋`;
+  document.getElementById('greeting').textContent = `${g}, ${user.name.split(' ')[0]}`;
 
   loadRooms();
   renderSchedule();
@@ -250,10 +250,12 @@ async function loadTodos() {
     const isDone = t.is_completed;
     return `
       <div class="todo-item">
-        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}"></button>
+        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}">
+          ${isDone ? `<lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json" background="transparent" speed="1" style="width: 14px; height: 14px;" autoplay></lottie-player>` : ''}
+        </button>
         <div class="todo-text ${isDone ? 'done' : ''}">${escapeHtml(t.title)}</div>
         ${sharedTag}
-        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>` : ''}
+        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f5d1/lottie.json" background="transparent" speed="1" style="width: 16px; height: 16px;" hover></lottie-player></button>` : ''}
       </div>
     `;
   }
@@ -352,24 +354,42 @@ function setPanel(id, el) {
 // ── ROOMS ──────────────────────────────────────────────────────
 async function loadRooms() {
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  if (ok) renderRoomList('recent-rooms', data);
+  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  let all = (ok && data) ? [...data] : [];
+  joined.forEach(jr => {
+    if (!all.find(r => r.code === jr.code)) {
+      all.push({ ...jr, is_joined: true });
+    }
+  });
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (all.length > 0) renderRoomList('recent-rooms', all);
   else document.getElementById('recent-rooms').innerHTML =
-    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet. Create one!</div>';
+    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet. Create or join one!</div>';
 }
 
 async function loadMyRooms() {
   document.getElementById('my-rooms-list').innerHTML =
     '<div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>';
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  if (ok) renderRoomList('my-rooms-list', data);
+  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  let all = (ok && data) ? [...data] : [];
+  joined.forEach(jr => {
+    if (!all.find(r => r.code === jr.code)) {
+      all.push({ ...jr, is_joined: true });
+    }
+  });
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (all.length > 0) renderRoomList('my-rooms-list', all);
   else document.getElementById('my-rooms-list').innerHTML =
-    '<div style="font-size:13px;color:var(--muted);padding:12px 0">Could not load rooms.</div>';
+    '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet.</div>';
 }
 
 function renderRoomList(id, rooms) {
   const el = document.getElementById(id);
   if (!rooms || !rooms.length) {
-    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet — create one above!</div>';
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet — create or join one above!</div>';
     return;
   }
   el.innerHTML = rooms.map(r => {
@@ -380,7 +400,7 @@ function renderRoomList(id, rooms) {
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
         <strong>${escapeHtml(r.name)}</strong>
-        <span>${dateStr} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
+        <span>${dateStr}${r.is_joined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
       </div>
       ${r.is_public ? '<span class="badge public">Public</span>' : ''}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
@@ -552,38 +572,40 @@ function deleteSchedule(id) {
 }
 
 function renderSchedule() {
-  const list = document.getElementById('schedule-list');
-  if (!list) return;
   const now = new Date();
   // Filter out past sessions older than 1h
   scheduleData = scheduleData.filter(s => new Date(s.datetime) > new Date(now - 3600000));
   localStorage.setItem('sr_schedule', JSON.stringify(scheduleData));
 
+  const lists = [document.getElementById('schedule-list'), document.getElementById('home-schedule-list')].filter(Boolean);
+  if (!lists.length) return;
+
+  let html = '';
   if (!scheduleData.length) {
-    list.innerHTML = `<div class="schedule-empty">
+    html = `<div class="schedule-empty">
       <div class="empty-icon"><i data-lucide="calendar" style="width:32px;height:32px"></i></div>
       <h3>No sessions yet</h3>
       <p>Schedule study sessions to stay on track</p>
       <button class="btn-go" style="max-width:180px;border-radius:var(--radius-sm)" onclick="openScheduleModal()">＋ Add Session</button>
     </div>`;
-    if (window.lucide) lucide.createIcons();
-    return;
+  } else {
+    html = scheduleData.map(s => {
+      const dt = new Date(s.datetime);
+      const dateStr = dt.toLocaleDateString('en', {weekday:'short',month:'short',day:'numeric'});
+      const timeStr = dt.toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit'});
+      const isPast = dt < now;
+      return `<div class="schedule-item" style="${isPast ? 'opacity:0.5' : ''}">
+        <div class="schedule-time">${timeStr}<br/><span style="font-size:10px;font-weight:400;color:var(--muted)">${dateStr}</span></div>
+        <div class="schedule-info">
+          <strong>${escapeHtml(s.title)}</strong>
+          <span>${escapeHtml(s.topic)} · ${s.duration} min${s.notes ? ' · ' + escapeHtml(s.notes.slice(0,40)) : ''}</span>
+        </div>
+        <button class="schedule-delete" onclick="deleteSchedule(${s.id})" title="Remove"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>`;
+    }).join('');
   }
 
-  list.innerHTML = scheduleData.map(s => {
-    const dt = new Date(s.datetime);
-    const dateStr = dt.toLocaleDateString('en', {weekday:'short',month:'short',day:'numeric'});
-    const timeStr = dt.toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit'});
-    const isPast = dt < now;
-    return `<div class="schedule-item" style="${isPast ? 'opacity:0.5' : ''}">
-      <div class="schedule-time">${timeStr}<br/><span style="font-size:10px;font-weight:400;color:var(--muted)">${dateStr}</span></div>
-      <div class="schedule-info">
-        <strong>${escapeHtml(s.title)}</strong>
-        <span>${escapeHtml(s.topic)} · ${s.duration} min${s.notes ? ' · ' + escapeHtml(s.notes.slice(0,40)) : ''}</span>
-      </div>
-      <button class="schedule-delete" onclick="deleteSchedule(${s.id})" title="Remove"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
-    </div>`;
-  }).join('');
+  lists.forEach(list => list.innerHTML = html);
   if (window.lucide) lucide.createIcons();
 }
 
