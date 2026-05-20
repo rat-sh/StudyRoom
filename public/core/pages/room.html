@@ -24,7 +24,14 @@
     <button class="room-back" onclick="leaveRoom()"><i data-lucide="arrow-left" style="width:14px;height:14px;margin-right:4px"></i> Back</button>
     <div class="room-header-title" id="room-name-title">Study Room</div>
     <div class="room-code-badge" id="room-code-badge">------</div>
-    <button class="share-header-btn" onclick="openShareModal()" title="Invite & Share">
+    <!-- Owner-only PIN badge — always visible to creator -->
+    <div id="owner-pin-badge" style="display:none;align-items:center;gap:6px;background:rgba(99,102,241,0.12);border:1px solid var(--accent);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer" onclick="openShareModal()" title="Your room PIN — click to share">
+      <i data-lucide="key" style="width:13px;height:13px;color:var(--accent)"></i>
+      <span style="color:var(--muted);font-weight:500">PIN</span>
+      <span id="owner-pin-value" style="color:var(--accent);letter-spacing:2px">----</span>
+      <i data-lucide="copy" style="width:11px;height:11px;color:var(--muted)"></i>
+    </div>
+    <button class="share-header-btn" onclick="openShareModal()" title="Invite &amp; Share">
       <i data-lucide="share-2" style="width:14px;height:14px;margin-right:4px"></i> Share
     </button>
     <div class="online-indicator">
@@ -33,42 +40,51 @@
     </div>
   </header>
 
-  <!-- BODY -->
+  <!-- BODY: ROW layout — left (video+feature) | resize | sidebar -->
   <div class="room-body">
-    <!-- VIDEO AREA -->
-    <div class="video-area" id="video-area">
-      <div class="video-grid" id="video-grid" data-peers="1">
-        <div class="video-tile you" id="tile-self">
-          <video id="local-video" autoplay muted playsinline></video>
-          <div class="tile-avatar" id="self-avatar">?</div>
-          <div class="tile-name" id="self-name">You</div>
-          <div class="tile-you-tag">You</div>
-          <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
-          <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('self')">
-            <i data-lucide="pin" style="width:13px;height:13px"></i>
-          </button>
-        </div>
-      </div>
-      <div class="cursor-overlay" id="cursor-overlay"></div>
-    </div>
 
-    <!-- FEATURE PANEL -->
-    <div class="feat-panel-wrap" id="feat-panel-wrap">
-      <div class="feat-panel-header">
-        <span id="feat-panel-title">Feature</span>
-        <button class="feat-close" onclick="closeFeature()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    <!-- LEFT COLUMN: video area on top, feature panel below when open -->
+    <div class="room-body-left" id="room-body-left">
+
+      <!-- VIDEO AREA -->
+      <div class="video-area" id="video-area">
+        <div class="video-grid" id="video-grid" data-peers="1">
+          <div class="video-tile you" id="tile-self">
+            <video id="local-video" autoplay muted playsinline></video>
+            <div class="tile-avatar" id="self-avatar">?</div>
+            <div class="tile-name" id="self-name">You</div>
+            <div class="tile-you-tag">You</div>
+            <span class="hand-badge">✋ Hand</span>
+            <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
+            <div class="tile-cam-off hidden" id="self-cam-off"><i data-lucide="video-off" style="width:14px;height:14px"></i></div>
+            <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('self')">
+              <i data-lucide="pin" style="width:13px;height:13px"></i>
+            </button>
+          </div>
+        </div>
+        <div class="cursor-overlay" id="cursor-overlay"></div>
       </div>
-      <div class="feat-panel-body" id="feat-panel-body"></div>
-    </div>
+
+      <!-- FEATURE PANEL (expands below video strip when a feature is open) -->
+      <div class="feat-panel-wrap" id="feat-panel-wrap">
+        <div class="feat-panel-header">
+          <span id="feat-panel-title">Feature</span>
+          <button class="feat-close" onclick="closeFeature()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+        </div>
+        <div class="feat-panel-body" id="feat-panel-body"></div>
+      </div>
+
+    </div><!-- /room-body-left -->
 
     <!-- RESIZE HANDLE -->
     <div class="sidebar-resize-handle" id="sidebar-resize-handle" title="Drag to resize"></div>
 
-    <!-- RIGHT SIDEBAR (resizable) -->
+    <!-- RIGHT SIDEBAR — always visible -->
     <div class="room-sidebar" id="room-sidebar">
       <div class="rsb-tabs">
         <div class="rsb-tab active" id="tab-people" onclick="setTab('people')"><i data-lucide="users" style="width:14px;height:14px"></i> People</div>
         <div class="rsb-tab" id="tab-chat" onclick="setTab('chat')"><i data-lucide="message-square" style="width:14px;height:14px"></i> Chat</div>
+        <div class="rsb-tab" id="tab-music" onclick="setTab('music')"><i data-lucide="music" style="width:14px;height:14px"></i> Music</div>
       </div>
 
       <!-- PEOPLE PANEL -->
@@ -82,17 +98,28 @@
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-row">
             <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
-            <input type="text" class="chat-input" id="chat-input" placeholder="Type a message or /play <song>…" maxlength="300"/>
+            <input type="text" class="chat-input" id="chat-input" placeholder="Type a message..." maxlength="300"/>
             <button class="chat-send" onclick="sendChat()" title="Send"><i data-lucide="arrow-up" style="width:16px;height:16px"></i></button>
-          </div>
-          <!-- Music bot hint -->
-          <div class="chat-bot-hint">
-            🎵 Music commands: <code>/play</code> <code>/pause</code> <code>/resume</code> <code>/skip</code> <code>/queue</code> <code>/stop</code>
           </div>
         </div>
       </div>
-    </div>
-  </div>
+
+      <!-- MUSIC PANEL -->
+      <div class="rsb-panel" id="rsb-music">
+        <div class="chat-panel">
+          <div class="chat-messages" id="music-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" class="chat-input" id="music-input" placeholder="Search a song or use /commands..." maxlength="300" onkeypress="if(event.key==='Enter') sendMusicCommand()"/>
+            <button class="chat-send" onclick="sendMusicCommand()" title="Send"><i data-lucide="play" style="width:16px;height:16px"></i></button>
+          </div>
+          <div class="chat-bot-hint">
+            🎵 Commands: <code>/play</code> <code>/pause</code> <code>/resume</code> <code>/skip</code> <code>/queue</code> <code>/flush</code>
+          </div>
+        </div>
+      </div>
+    </div><!-- /room-sidebar -->
+
+  </div><!-- /room-body -->
 
   <!-- CONTROLS BAR — Google Meet style -->
   <div class="controls-bar">
@@ -101,7 +128,7 @@
     <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()" title="Camera"><i data-lucide="camera" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share"><i data-lucide="monitor" style="width:20px;height:20px"></i></button>
     <div class="ctrl-sep"></div>
-    <!-- Feature buttons (moved from rail) -->
+    <!-- Feature buttons -->
     <button class="ctrl-btn feat-ctrl" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard">
       <i data-lucide="pen-tool" style="width:18px;height:18px"></i>
       <span class="ctrl-label">Board</span>
@@ -114,13 +141,19 @@
       <i data-lucide="folder" style="width:18px;height:18px"></i>
       <span class="ctrl-label">Files</span>
     </button>
+    <button class="ctrl-btn feat-ctrl" id="feat-games" onclick="toggleFeature('games')" title="Games">
+      <i data-lucide="gamepad-2" style="width:18px;height:18px"></i>
+      <span class="ctrl-label">Games</span>
+    </button>
     <button class="ctrl-btn feat-ctrl" id="feat-music" onclick="openMusicPanel()" title="Music Bot">
       <i data-lucide="music" style="width:18px;height:18px"></i>
       <span class="ctrl-label">Music</span>
     </button>
     <div class="ctrl-sep"></div>
     <!-- Reactions & extras -->
-    <button class="ctrl-btn" id="btn-hand" onclick="sendReaction('✋')" title="Raise Hand"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
+    <button class="ctrl-btn" id="btn-hand" title="Hold 5s to raise hand · tap again to lower"
+      onmousedown="startRaiseHandHold(event)" onmouseup="endRaiseHandHold()" onmouseleave="endRaiseHandHold()"
+      ontouchstart="startRaiseHandHold(event)" ontouchend="endRaiseHandHold()"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions"><i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i></button>
     <button class="ctrl-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar"><i data-lucide="panel-right" style="width:20px;height:20px"></i></button>
     <div class="ctrl-sep"></div>
@@ -143,9 +176,6 @@
   <button class="ep-emoji" onclick="sendReaction('✅')">✅</button>
   <button class="ep-emoji" onclick="sendReaction('😍')">😍</button>
   <button class="ep-emoji" onclick="sendReaction('🙏')">🙏</button>
-  <button class="ep-emoji" onclick="sendEmojiToChat('👍')">
-    <span style="font-size:10px;position:absolute;right:1px;bottom:1px;opacity:0.6">💬</span>👍
-  </button>
   <div style="width:100%;border-top:1px solid var(--border);padding-top:8px;margin-top:2px;font-size:10px;color:var(--muted)">
     Click to react · will also appear in chat
   </div>
@@ -163,31 +193,21 @@
       </div>
       <button class="share-close-btn" onclick="closeShareModal()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
     </div>
-
     <div class="share-row">
       <span class="share-row-label">Code</span>
       <span class="share-row-val" id="share-code-val">------</span>
-      <button class="share-copy-btn" onclick="copyShareCode()">
-        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
-      </button>
+      <button class="share-copy-btn" onclick="copyShareCode()"><i data-lucide="copy" style="width:12px;height:12px"></i> Copy</button>
     </div>
-
     <div class="share-row" id="share-pin-row">
       <span class="share-row-label">PIN</span>
       <span class="share-row-val" id="share-pin-val">----</span>
-      <button class="share-copy-btn" onclick="copySharePin()">
-        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
-      </button>
+      <button class="share-copy-btn" onclick="copySharePin()"><i data-lucide="copy" style="width:12px;height:12px"></i> Copy</button>
     </div>
-
     <div class="share-row">
       <span class="share-row-label">Link</span>
       <span class="share-row-val" id="share-link-val" style="font-size:11px">generating…</span>
-      <button class="share-copy-btn" onclick="copyShareLink()">
-        <i data-lucide="copy" style="width:12px;height:12px"></i> Copy
-      </button>
+      <button class="share-copy-btn" onclick="copyShareLink()"><i data-lucide="copy" style="width:12px;height:12px"></i> Copy</button>
     </div>
-
     <div class="share-modal-footer">
       <button class="share-all-btn" onclick="copyShareAll()">
         <i data-lucide="clipboard-list" style="width:14px;height:14px"></i> Copy All Details
@@ -197,9 +217,74 @@
   </div>
 </div>
 
+<!-- ═══ PRE-JOIN DEVICE SELECTION MODAL ═══════════════════════════════════ -->
+<div class="modal-overlay" id="prejoin-modal" style="z-index:9999;background:rgba(0,0,0,0.85)">
+  <div class="modal" style="max-width:480px;padding:0;overflow:hidden;border-radius:16px">
+
+    <!-- Camera preview -->
+    <div style="position:relative;background:#000;aspect-ratio:16/9;max-height:240px;overflow:hidden">
+      <video id="prejoin-video" autoplay muted playsinline
+             style="width:100%;height:100%;object-fit:cover;display:block"></video>
+      <div id="prejoin-cam-off" style="display:none;position:absolute;inset:0;background:#111;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted)">
+        <i data-lucide="camera-off" style="width:36px;height:36px"></i>
+        <span style="font-size:13px">Camera is off</span>
+      </div>
+      <div style="position:absolute;bottom:10px;left:12px;font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.7)" id="prejoin-name-label"></div>
+    </div>
+
+    <!-- Controls -->
+    <div style="padding:20px 24px">
+      <h2 style="margin:0 0 16px;font-size:16px;display:flex;align-items:center;gap:8px">
+        <i data-lucide="settings-2" style="width:16px;height:16px;color:var(--accent)"></i>
+        Ready to join?
+      </h2>
+
+      <!-- Cam + Mic toggles -->
+      <div style="display:flex;gap:12px;margin-bottom:16px">
+        <button id="pj-cam-btn" onclick="prejoinToggleCam()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.15s">
+          <i data-lucide="video" id="pj-cam-icon" style="width:15px;height:15px"></i>
+          <span id="pj-cam-label">Camera On</span>
+        </button>
+        <button id="pj-mic-btn" onclick="prejoinToggleMic()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);transition:all 0.15s">
+          <i data-lucide="mic" id="pj-mic-icon" style="width:15px;height:15px"></i>
+          <span id="pj-mic-label">Mic On</span>
+        </button>
+      </div>
+
+      <!-- Device selectors -->
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Camera</label>
+          <select id="pj-cam-select" onchange="prejoinSwitchCam(this.value)"
+                  style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Microphone</label>
+          <select id="pj-mic-select" onchange="prejoinSwitchMic(this.value)"
+                  style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Speaker</label>
+          <select id="pj-spk-select"
+                  style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"></select>
+        </div>
+      </div>
+
+      <!-- Join button -->
+      <button onclick="prejoinConfirm()"
+              style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity 0.15s">
+        <i data-lucide="video" style="width:16px;height:16px"></i>
+        Join Now
+      </button>
+      <p style="margin:10px 0 0;font-size:11px;color:var(--muted);text-align:center">Your preferences are saved for next time</p>
+    </div>
+  </div>
+</div>
+
 <div id="yt-player" style="display:none;"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
+<script src="/core/js/event-bus.js"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="/features/music/music-bot.js"></script>
 <script src="/core/js/room.js"></script>

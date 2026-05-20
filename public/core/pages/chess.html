@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>StudyRoom — Chess</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/core/css/base.css"/>
+<link rel="stylesheet" href="/core/css/app-shell.css"/>
+<link rel="stylesheet" href="/core/css/chess-page.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"/>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <aside class="sidebar" id="app-sidebar"></aside>
+  <div class="app-content">
+    <div class="chess-app">
+      <div class="chess-center">
+        <div class="chess-toolbar">
+          <select id="modeSelect">
+            <option value="ai">vs Stockfish AI</option>
+            <option value="local">Local 2-player</option>
+            <option value="pvp">Online PVP</option>
+          </select>
+          <button type="button" id="resetBtn">New Game</button>
+        </div>
+        <div id="pvpControls" class="chess-toolbar" style="display:none;flex-direction:column;align-items:stretch">
+          <button type="button" class="primary" id="createPvpBtn">Create Online Match</button>
+          <div style="display:flex;gap:6px;width:100%">
+            <input type="text" id="joinGameId" placeholder="Game ID" maxlength="6" style="flex:1;text-transform:uppercase"/>
+            <button type="button" id="joinPvpBtn">Join</button>
+          </div>
+          <div style="display:flex;gap:6px;width:100%">
+            <input type="text" id="gameIdDisplay" readonly placeholder="Your game ID"/>
+            <button type="button" id="copyLinkBtn">Copy Link</button>
+          </div>
+        </div>
+        <div id="board"></div>
+        <div class="chess-status-row" id="status">White to move</div>
+      </div>
+
+      <aside class="chess-side">
+        <div class="chess-side-header">♟ Chess</div>
+        <div class="chess-pvp-panel">
+          <div class="chess-pvp-meta" id="pvpMeta">Pick Online PVP to play a friend in real time.</div>
+        </div>
+        <div class="chess-voice-panel" id="chessVoicePanel">
+          <div class="chess-chat-label">Voice chat</div>
+          <p class="chess-voice-status" id="chessVoiceStatus">Voice chat — available in Online PVP</p>
+          <div class="chess-voice-controls">
+            <button type="button" class="chess-voice-btn" id="chessVoiceToggle">Join Voice</button>
+            <button type="button" class="chess-voice-btn icon" id="chessMicMute" title="Mute microphone" disabled>
+              <i data-lucide="mic" style="width:16px;height:16px"></i>
+            </button>
+          </div>
+        </div>
+        <div class="chess-chat-section">
+          <div class="chess-chat-label">Text chat</div>
+          <div class="chess-chat-messages" id="chessChatMessages"></div>
+          <div class="chess-chat-input-row">
+            <input type="text" id="chessChatInput" placeholder="Message…" maxlength="300"/>
+            <button type="button" id="chessChatSend" title="Send">↑</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/core/js/api.js"></script>
+<script src="/core/js/app-nav.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="/core/js/chess-voice.js"></script>
+<script src="/core/js/chess-page.js"></script>
+</body>
+</html>

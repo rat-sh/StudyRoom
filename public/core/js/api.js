@@ -71,6 +71,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (iconId) {
     iconId.setAttribute('data-lucide', storedTheme === 'dark' ? 'sun' : 'moon');
   }
+
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+    }
+  });
 });
 
 function toggleTheme() {
@@ -90,4 +99,18 @@ function toggleTheme() {
 // Logged-in users → /dashboard   |   Guests/visitors → /
 function goHome() {
   window.location.href = API.user() ? '/dashboard' : '/';
+}
+
+function openModal(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+
+function logout() {
+  ['sr_token', 'sr_user', 'sr_joined_rooms', 'sr_schedule'].forEach(k => localStorage.removeItem(k));
+  sessionStorage.removeItem('sr_guest');
+  window.location.href = '/';
 }

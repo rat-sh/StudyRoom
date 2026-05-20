@@ -28,6 +28,13 @@ let activeFeature = null;
 let sidebarVisible = true;
 let emojiPickerOpen = false;
 
+// Raise hand (5s hold, priority grid, tap to lower)
+const HAND_HOLD_MS = 5000;
+const HAND_MIC_GRANT_MS = 5000;
+let myHandRaised = false;
+let handHoldTimer = null;
+const raisedHandOrder = []; // socketIds first = front of grid
+
 // Pinning / Spotlight state
 let pinnedSocketId = null; // null = normal grid, 'self' or socketId = pinned
 
@@ -69,13 +76,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('self-name').textContent = user.name;
   addToPeopleList('self', user.name, true, user.guest);
 
-  // Acquire media FIRST, THEN join so localStream is ready before
-  // callPeer() fires on room-peers / user-joined events.
-  try { await requestMedia(true); } catch { /* user denied — join anyway */ }
-  socket.emit('join-room', { roomCode, user });
-
-  MusicBot.init(socket, roomCode);
-
   const chatInput = document.getElementById('chat-input');
   chatInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
@@ -93,10 +93,171 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Show pre-join modal first — user sets cam/mic/device then joins
+  await initPrejoinModal();
+
   fetchRoomInfo();
   initSidebarResize();
   updateVideoGrid();
 });
+
+// ── PRE-JOIN MODAL ─────────────────────────────────────────────
+const PJ_PREFS_KEY = 'sr_prejoin_prefs';
+let _prejoinStream = null;
+let _pjCamOn = true;
+let _pjMicOn = true;
+let _pjCamId = null;
+let _pjMicId = null;
+
+async function initPrejoinModal() {
+  // Load saved prefs
+  const saved = JSON.parse(localStorage.getItem(PJ_PREFS_KEY) || '{}');
+  _pjCamOn = saved.camOn !== false;
+  _pjMicOn = saved.micOn !== false;
+  _pjCamId = saved.camId || null;
+  _pjMicId = saved.micId || null;
+
+  document.getElementById('prejoin-name-label').textContent = user.name;
+  document.getElementById('prejoin-modal').classList.add('open');
+
+  // Populate device lists
+  await _populatePrejoinDevices();
+  // Start preview
+  await _startPrejoinPreview();
+  // Apply saved toggles
+  _updatePrejoinUI();
+  if (window.lucide) lucide.createIcons();
+}
+
+async function _populatePrejoinDevices() {
+  try {
+    // Request permission first so labels are available
+    const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    tmp.getTracks().forEach(t => t.stop());
+  } catch { /* denied — lists will be empty */ }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const camSel = document.getElementById('pj-cam-select');
+  const micSel = document.getElementById('pj-mic-select');
+  const spkSel = document.getElementById('pj-spk-select');
+
+  const fill = (sel, list, savedId) => {
+    sel.innerHTML = list.map((d, i) =>
+      `<option value="${d.deviceId}" ${d.deviceId === savedId ? 'selected' : ''}>${d.label || `Device ${i+1}`}</option>`
+    ).join('');
+  };
+
+  fill(camSel, devices.filter(d => d.kind === 'videoinput'),  _pjCamId);
+  fill(micSel, devices.filter(d => d.kind === 'audioinput'),  _pjMicId);
+  fill(spkSel, devices.filter(d => d.kind === 'audiooutput'), null);
+}
+
+async function _startPrejoinPreview() {
+  if (_prejoinStream) { _prejoinStream.getTracks().forEach(t => t.stop()); }
+  try {
+    const constraints = {
+      video: _pjCamOn ? { deviceId: _pjCamId ? { exact: _pjCamId } : undefined } : false,
+      audio: _pjMicOn ? { deviceId: _pjMicId ? { exact: _pjMicId } : undefined } : false,
+    };
+    _prejoinStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('prejoin-video').srcObject = _prejoinStream;
+  } catch {
+    _prejoinStream = null;
+  }
+}
+
+function _updatePrejoinUI() {
+  const camBtn  = document.getElementById('pj-cam-btn');
+  const micBtn  = document.getElementById('pj-mic-btn');
+  const camOff  = document.getElementById('prejoin-cam-off');
+
+  document.getElementById('pj-cam-label').textContent = _pjCamOn ? 'Camera On'  : 'Camera Off';
+  document.getElementById('pj-mic-label').textContent = _pjMicOn ? 'Mic On'     : 'Mic Off';
+
+  camBtn.style.background = _pjCamOn ? 'rgba(99,102,241,0.12)' : 'var(--bg3)';
+  camBtn.style.borderColor = _pjCamOn ? 'var(--accent)'        : 'var(--border)';
+  camBtn.style.color       = _pjCamOn ? 'var(--accent)'        : 'var(--muted)';
+
+  micBtn.style.background  = _pjMicOn ? 'rgba(34,197,94,0.1)'  : 'var(--bg3)';
+  micBtn.style.borderColor = _pjMicOn ? 'var(--success,#22c55e)': 'var(--border)';
+  micBtn.style.color       = _pjMicOn ? 'var(--success,#22c55e)': 'var(--muted)';
+
+  if (camOff) camOff.style.display = _pjCamOn ? 'none' : 'flex';
+}
+
+async function prejoinToggleCam() {
+  _pjCamOn = !_pjCamOn;
+  if (!_pjCamOn && _prejoinStream) {
+    _prejoinStream.getVideoTracks().forEach(t => { t.stop(); _prejoinStream.removeTrack(t); });
+    document.getElementById('prejoin-video').srcObject = null;
+  } else if (_pjCamOn) {
+    await _startPrejoinPreview();
+  }
+  _updatePrejoinUI();
+  if (window.lucide) lucide.createIcons();
+}
+
+function prejoinToggleMic() {
+  _pjMicOn = !_pjMicOn;
+  if (_prejoinStream) _prejoinStream.getAudioTracks().forEach(t => t.enabled = _pjMicOn);
+  _updatePrejoinUI();
+  if (window.lucide) lucide.createIcons();
+}
+
+async function prejoinSwitchCam(deviceId) {
+  _pjCamId = deviceId;
+  if (_pjCamOn) await _startPrejoinPreview();
+}
+async function prejoinSwitchMic(deviceId) {
+  _pjMicId = deviceId;
+  if (_pjMicOn) await _startPrejoinPreview();
+}
+
+async function prejoinConfirm() {
+  // Save preferences
+  localStorage.setItem(PJ_PREFS_KEY, JSON.stringify({
+    camOn: _pjCamOn, micOn: _pjMicOn, camId: _pjCamId, micId: _pjMicId
+  }));
+
+  // Apply to global state
+  camOn = _pjCamOn;
+  micOn = _pjMicOn;
+
+  // Stop preview stream — requestMedia will create the real one
+  if (_prejoinStream) { _prejoinStream.getTracks().forEach(t => t.stop()); _prejoinStream = null; }
+
+  // Close modal
+  document.getElementById('prejoin-modal').classList.remove('open');
+
+  // Now do the real media + join
+  try {
+    const constraints = {
+      video: camOn ? { deviceId: _pjCamId ? { exact: _pjCamId } : undefined } : false,
+      audio: micOn ? { deviceId: _pjMicId ? { exact: _pjMicId } : undefined } : false,
+    };
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const vid = document.getElementById('local-video');
+    vid.srcObject = localStream;
+    vid.classList.add('active');
+    document.getElementById('self-avatar').style.display = 'none';
+    document.getElementById('self-name').style.display = 'none';
+    document.getElementById('perm-banner').style.display = 'none';
+    if (!micOn) localStream.getAudioTracks().forEach(t => t.enabled = false);
+    if (!camOn) localStream.getVideoTracks().forEach(t => t.enabled = false);
+  } catch { /* user denied — join without media */ }
+
+  socket.emit('join-room', { roomCode, user });
+  // Broadcast Walled Garden presence with visibility context
+  if (roomInfoCache) {
+    socket.emit('update-status', { 
+      status: 'in-room', 
+      context: { roomCode, roomName: roomInfoCache.name },
+      visibility: roomInfoCache.visibility 
+    });
+  }
+  MusicBot.init(socket, roomCode);
+  socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
+}
 
 // ── RESIZABLE SIDEBAR ──────────────────────────────────────────
 function initSidebarResize() {
@@ -168,10 +329,48 @@ async function requestMedia(silent = false) {
   }
 }
 
-function toggleMic() {
-  if (!localStream) { showToast('Click Allow Access first'); return; }
-  micOn = !micOn;
-  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+async function ensureLocalStream(wantVideo, wantAudio) {
+  if (localStream && ((wantAudio && localStream.getAudioTracks().length) || (wantVideo && localStream.getVideoTracks().length))) {
+    return localStream;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: wantVideo ? { deviceId: _pjCamId ? { exact: _pjCamId } : undefined } : false,
+      audio: wantAudio ? { deviceId: _pjMicId ? { exact: _pjMicId } : undefined } : false,
+    });
+    if (!localStream) localStream = stream;
+    else {
+      stream.getTracks().forEach(t => {
+        const existing = localStream.getTracks().find(x => x.kind === t.kind);
+        if (existing) localStream.removeTrack(existing);
+        localStream.addTrack(t);
+      });
+    }
+    const vid = document.getElementById('local-video');
+    if (wantVideo && localStream.getVideoTracks().length) {
+      vid.srcObject = localStream;
+      vid.classList.add('active');
+      document.getElementById('self-avatar').style.display = 'none';
+      document.getElementById('self-name').style.display = 'none';
+      document.getElementById('self-cam-off')?.classList.add('hidden');
+    }
+    document.getElementById('perm-banner').style.display = 'none';
+    return localStream;
+  } catch {
+    showToast('Could not access microphone/camera');
+    return null;
+  }
+}
+
+async function toggleMic() {
+  if (!localStream?.getAudioTracks().length) {
+    const s = await ensureLocalStream(camOn, true);
+    if (!s) return;
+    micOn = true;
+  } else {
+    micOn = !micOn;
+    localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  }
   const btn = document.getElementById('btn-mic');
   btn.innerHTML = micOn
     ? '<i data-lucide="mic" style="width:20px;height:20px"></i>'
@@ -183,8 +382,7 @@ function toggleMic() {
   if (window.lucide) lucide.createIcons();
 }
 
-function toggleCam() {
-  if (!localStream) { showToast('Click Allow Access first'); return; }
+async function toggleCam() {
   const btn = document.getElementById('btn-cam');
   const vid = document.getElementById('local-video');
   const tileSelf = document.getElementById('tile-self');
@@ -201,8 +399,9 @@ function toggleCam() {
     if (tileSelf) tileSelf.classList.add('cam-off');
     document.getElementById('self-avatar').style.display = 'flex';
     document.getElementById('self-name').style.display = 'block';
-    btn.innerHTML = '<i data-lucide="camera-off" style="width:20px;height:20px"></i>';
+    btn.innerHTML = '<i data-lucide="video-off" style="width:20px;height:20px"></i>';
     btn.classList.add('off');
+    document.getElementById('self-cam-off')?.classList.remove('hidden');
     // ── FIX 3a: Tell peers the camera is off (track was stopped, not
     // just disabled, so replaceTrack with null to signal black screen)
     Object.values(peers).forEach(pc => {
@@ -213,6 +412,17 @@ function toggleCam() {
     showToast('Camera off');
     if (window.lucide) lucide.createIcons();
   } else {
+    if (!localStream) {
+      const s = await ensureLocalStream(true, micOn);
+      if (!s) return;
+      camOn = true;
+      btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i>';
+      btn.classList.remove('off');
+      document.getElementById('self-cam-off')?.classList.add('hidden');
+      socket.emit('media-state', { roomCode, video: true, audio: micOn });
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
     // Request a fresh video track
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(newStream => {
@@ -241,8 +451,9 @@ function toggleCam() {
         if (tileSelf) tileSelf.classList.remove('cam-off');
         document.getElementById('self-avatar').style.display = 'none';
         document.getElementById('self-name').style.display = 'none';
-        btn.innerHTML = '<i data-lucide="camera" style="width:20px;height:20px"></i>';
+        btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i>';
         btn.classList.remove('off');
+        document.getElementById('self-cam-off')?.classList.add('hidden');
         socket.emit('media-state', { roomCode, video: true, audio: micOn });
         showToast('Camera on');
         if (window.lucide) lucide.createIcons();
@@ -398,7 +609,25 @@ function updateVideoGrid() {
   // If pinned spotlight mode is active, layout is handled by CSS + buildThumbStrip()
   if (pinnedSocketId) return;
 
-  const tiles = Array.from(grid.querySelectorAll('.video-tile'));
+  let tiles = Array.from(grid.querySelectorAll('.video-tile'));
+  // Priority: raised hands first (up to 10 visible prominence)
+  if (raisedHandOrder.length) {
+    tiles.sort((a, b) => {
+      const aid = a.id.replace('tile-', '');
+      const bid = b.id.replace('tile-', '');
+      const ai = raisedHandOrder.indexOf(aid);
+      const bi = raisedHandOrder.indexOf(bid);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+    tiles.forEach(t => grid.appendChild(t));
+    tiles.forEach(t => {
+      const sid = t.id.replace('tile-', '');
+      t.classList.toggle('hand-priority', raisedHandOrder.includes(sid));
+    });
+  }
   const count = tiles.length;
   if (count === 0) return;
 
@@ -675,6 +904,20 @@ socket.on('room-count', count => {
   document.getElementById('online-count').textContent = count;
 });
 
+// ── ROOM DELETED — realtime sync (server broadcasts when owner deletes) ──
+socket.on('room-deleted', ({ message }) => {
+  if (window.EventBus) EventBus.emit('ROOM_DELETED', { message });
+  // Clear this room from localStorage cache immediately
+  let joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  joined = joined.filter(r => r.code !== roomCode);
+  localStorage.setItem('sr_joined_rooms', JSON.stringify(joined));
+  // Show banner then redirect
+  showToast('🚫 ' + (message || 'Room has been deleted.'));
+  setTimeout(() => {
+    window.location.href = API.user() ? '/dashboard' : '/lobby';
+  }, 2500);
+});
+
 socket.on('offer', async ({ from, offer, renegotiate: isRenegotiate }) => {
   // ── FIX: if we already have a PC for this peer (renegotiation),
   // update it rather than creating a duplicate connection.
@@ -774,13 +1017,21 @@ function sendChat() {
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
   if (!message) return;
-
-  if (message.startsWith('/')) {
-    const handled = MusicBot.parseCommand(message);
-    if (handled) { input.value = ''; return; }
-  }
-
   socket.emit('chat-message', { roomCode, message });
+  input.value = '';
+}
+
+function sendMusicCommand() {
+  const input = document.getElementById('music-input');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  if (message.startsWith('/')) {
+    MusicBot.parseCommand(message);
+  } else {
+    // Treat plain text as a search query
+    MusicBot.parseCommand(`/play ${message}`);
+  }
   input.value = '';
 }
 
@@ -818,6 +1069,62 @@ function appendSystemMessage(text) {
 }
 
 // ── REACTIONS ──────────────────────────────────────────────────
+function startRaiseHandHold(e) {
+  if (e?.preventDefault) e.preventDefault();
+  if (myHandRaised) {
+    lowerHand();
+    return;
+  }
+  const btn = document.getElementById('btn-hand');
+  btn?.classList.add('hand-holding');
+  clearTimeout(handHoldTimer);
+  handHoldTimer = setTimeout(() => {
+    btn?.classList.remove('hand-holding');
+    raiseHandNow();
+  }, HAND_HOLD_MS);
+  showToast('Hold 5 seconds to raise your hand…');
+}
+
+function endRaiseHandHold() {
+  clearTimeout(handHoldTimer);
+  document.getElementById('btn-hand')?.classList.remove('hand-holding');
+}
+
+function raiseHandNow() {
+  myHandRaised = true;
+  document.getElementById('btn-hand')?.classList.add('hand-active');
+  socket.emit('raise-hand', { roomCode, active: true });
+  spawnReaction('✋', 'tile-self');
+  showToast('✋ Hand raised — you are in the speaker queue');
+  setTimeout(() => {
+    if (!myHandRaised) return;
+    showToast('You may speak — tap the mic button to unmute');
+  }, HAND_MIC_GRANT_MS);
+}
+
+function lowerHand() {
+  myHandRaised = false;
+  document.getElementById('btn-hand')?.classList.remove('hand-active', 'hand-holding');
+  socket.emit('raise-hand', { roomCode, active: false });
+  document.getElementById('tile-self')?.classList.remove('hand-priority');
+}
+
+socket.on('hands-updated', ({ hands }) => {
+  raisedHandOrder.length = 0;
+  (hands || []).forEach(h => raisedHandOrder.push(h.socketId));
+  document.querySelectorAll('.video-tile').forEach(t => {
+    const sid = t.id.replace('tile-', '');
+    t.classList.toggle('hand-priority', raisedHandOrder.includes(sid));
+  });
+  if (!pinnedSocketId) updateVideoGrid();
+});
+
+socket.on('hand-raised', ({ socketId, name, active }) => {
+  if (active) showToast(`${name} raised their hand`);
+  else if (socketId !== socket.id) showToast(`${name} lowered their hand`);
+  if (socketId !== socket.id) spawnReaction('✋', 'tile-' + socketId);
+});
+
 function sendReaction(emoji) {
   socket.emit('send-reaction', { roomCode, emoji });
   spawnReaction(emoji, 'tile-self');
@@ -828,11 +1135,6 @@ function sendReaction(emoji) {
 
 socket.on('reaction', ({ socketId, emoji }) => {
   spawnReaction(emoji, 'tile-' + socketId);
-});
-
-socket.on('hand-raised', ({ socketId, name }) => {
-  showToast(`${name} raised their hand`);
-  spawnReaction('✋', 'tile-' + socketId);
 });
 
 function spawnReaction(emoji, tileId) {
@@ -890,18 +1192,19 @@ function setTab(tab) {
 const FEATURES = {
   whiteboard: { title: '✏️ Whiteboard', src: '/features/whiteboard/index.html' },
   timer: { title: '⏱ Pomodoro Timer', src: '/features/timer/index.html' },
-  files: { title: '📁 File Sharing', src: '/features/files/index.html' }
+  files: { title: '📁 File Sharing', src: '/features/files/index.html' },
+  games: { title: '🎮 Games', src: '/features/games/index.html' }
 };
 
 function openMusicPanel() {
   if (!sidebarVisible) toggleSidebar();
-  setTab('chat');
+  setTab('music');
   const hint = document.querySelector('.chat-bot-hint');
   if (hint) {
     hint.classList.add('music-hint-glow');
     setTimeout(() => hint.classList.remove('music-hint-glow'), 1800);
   }
-  const input = document.getElementById('chat-input');
+  const input = document.getElementById('music-input');
   if (input) {
     input.focus();
     if (!input.value) input.value = '/play ';
@@ -985,7 +1288,9 @@ function addVideoTile(socketId, name, guest = false) {
     <video id="vid-${socketId}" autoplay playsinline></video>
     <div class="tile-avatar" id="av-${socketId}">${initials(name)}</div>
     <div class="tile-name" id="nm-${socketId}">${escapeHtml(name)}</div>
+    <span class="hand-badge">✋ Hand</span>
     <div class="tile-mic-off hidden" id="mic-${socketId}"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
+    <div class="tile-cam-off hidden" id="cam-${socketId}"><i data-lucide="video-off" style="width:14px;height:14px"></i></div>
     ${guest ? `<div class="tile-guest-tag">Guest</div>` : ''}
     <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('${socketId}')">
       <i data-lucide="pin" style="width:13px;height:13px"></i>
@@ -1010,14 +1315,137 @@ function addToPeopleList(socketId, name, isYou = false, guest = false) {
   const div = document.createElement('div');
   div.className = 'peer-row';
   div.id = 'peer-row-' + socketId;
+
+  // Room owner check — roomInfoCache may not be ready yet but will be within ms
+  const isOwner = () => roomInfoCache && user && roomInfoCache.created_by === user.id;
+
   div.innerHTML = `
     <div class="peer-av">${initials(name)}</div>
     <div class="peer-name">${escapeHtml(name)}</div>
     ${isYou ? '<span class="peer-you">You</span>' : ''}
     ${guest && !isYou ? '<span class="peer-guest">Guest</span>' : ''}
+    ${!isYou ? `
+    <div class="peer-mod-wrap" style="margin-left:auto;position:relative">
+      <button class="peer-mod-btn" onclick="toggleModMenu('${socketId}',event)" title="Moderation"
+              style="background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:4px;font-size:16px;line-height:1;display:none"
+              id="mod-btn-${socketId}">⋯</button>
+      <div class="peer-mod-menu" id="mod-menu-${socketId}"
+           style="display:none;position:absolute;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:4px;min-width:140px;box-shadow:var(--shadow-md);z-index:50">
+        <div class="mod-opt" onclick="kickUser('${socketId}','${escapeHtml(name)}')"
+             style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:#ef4444;transition:background 0.1s"
+             onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background=''">
+          Kick from room
+        </div>
+        <div class="mod-opt" onclick="muteUser('${socketId}','${escapeHtml(name)}')"
+             style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.1s"
+             onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          Force mute
+        </div>
+        <div class="mod-opt" onclick="stopShareUser('${socketId}','${escapeHtml(name)}')"
+             style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.1s"
+             onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+          Stop screen share
+        </div>
+        <div class="mod-opt" onclick="timeoutUser('${socketId}','${escapeHtml(name)}')"
+             style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:#f97316;transition:background 0.1s;border-top:1px solid var(--border);margin-top:4px"
+             onmouseover="this.style.background='rgba(249,115,22,0.1)'" onmouseout="this.style.background=''">
+          Timeout (Ban)
+        </div>
+      </div>
+    </div>` : ''}
   `;
   list.appendChild(div);
+
+  // Show mod button only if we are the owner
+  setTimeout(() => {
+    if (isOwner() && !isYou) {
+      const btn = document.getElementById(`mod-btn-${socketId}`);
+      if (btn) btn.style.display = 'flex';
+    }
+  }, 800);
 }
+
+function toggleModMenu(socketId, e) {
+  e.stopPropagation();
+  const menu = document.getElementById(`mod-menu-${socketId}`);
+  if (!menu) return;
+  const isOpen = menu.style.display === 'block';
+  // Close all other menus
+  document.querySelectorAll('.peer-mod-menu').forEach(m => m.style.display = 'none');
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    setTimeout(() => document.addEventListener('click', () => { menu.style.display = 'none'; }, { once: true }), 10);
+  }
+}
+
+function kickUser(targetSocketId, targetName) {
+  document.querySelectorAll('.peer-mod-menu').forEach(m => m.style.display = 'none');
+  if (!confirm(`Kick "${targetName}" from the room?`)) return;
+  socket.emit('mod-kick', { roomCode, targetSocketId });
+  showToast(`Kicked ${targetName}`);
+}
+
+function muteUser(targetSocketId, targetName) {
+  document.querySelectorAll('.peer-mod-menu').forEach(m => m.style.display = 'none');
+  socket.emit('mod-mute', { roomCode, targetSocketId });
+  showToast(`Muted ${targetName}`);
+}
+
+function stopShareUser(targetSocketId, targetName) {
+  document.querySelectorAll('.peer-mod-menu').forEach(m => m.style.display = 'none');
+  socket.emit('mod-stop-share', { roomCode, targetSocketId });
+  showToast(`Stopped ${targetName}'s screen share`);
+}
+
+function timeoutUser(targetSocketId, targetName) {
+  document.querySelectorAll('.peer-mod-menu').forEach(m => m.style.display = 'none');
+  if (!confirm(`Timeout "${targetName}"? They will not be able to rejoin this room session.`)) return;
+  socket.emit('mod-timeout', { roomCode, targetSocketId });
+  showToast(`Banned ${targetName} for this session`);
+}
+
+// ── Listen for being kicked/muted by owner ────────────────────────────────
+socket.on('you-were-kicked', (data) => {
+  const reason = data?.reason === 'banned' ? '❌ You are banned from this room.' : '❌ You were removed from this room by the owner.';
+  showToast(reason, 4000);
+  setTimeout(() => window.location.href = '/dashboard', 2000);
+});
+socket.on('you-were-muted', () => {
+  if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = false);
+  micOn = false;
+  const btn = document.getElementById('btn-mic');
+  if (btn) {
+    btn.innerHTML = '<i data-lucide="mic-off" style="width:18px;height:18px"></i>';
+    btn.classList.add('off');
+    if (window.lucide) lucide.createIcons();
+  }
+  document.getElementById('self-mic-off')?.classList.remove('hidden');
+  socket.emit('media-state', { roomCode, video: camOn, audio: false });
+  showToast('🔇 You were muted by the room owner');
+});
+socket.on('you-were-unshared', () => {
+  if (screenStream) {
+    screenStream.getTracks().forEach(t => t.stop());
+    screenStream = null;
+    document.getElementById('btn-screen').classList.remove('active');
+    socket.emit('screen-share-stopped', { roomCode });
+    if (pinnedSocketId === 'self') unpinAll();
+    Object.values(peers).forEach(pc => {
+      const senders = pc.getSenders();
+      const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+      const camTrack = localStream?.getVideoTracks()[0] ?? null;
+      if (videoSender && camTrack) videoSender.replaceTrack(camTrack);
+    });
+    showToast('🛑 Your screen share was stopped by the owner');
+  }
+});
+
+// Remove from people list when peer leaves
+socket.on('user-left', ({ socketId }) => {
+  document.getElementById('peer-row-' + socketId)?.remove();
+});
+
+
 
 // ── SHARE PANEL ────────────────────────────────────────────────
 let roomInfoCache = null;
@@ -1032,7 +1460,18 @@ async function fetchRoomInfo() {
     if (roomInfoCache.name) {
       document.getElementById('room-name-title').textContent = roomInfoCache.name;
     }
-    
+
+    // ── Owner PIN badge — always show to creator ──────────────────
+    if (roomInfoCache.pin) {
+      const badge = document.getElementById('owner-pin-badge');
+      const pinVal = document.getElementById('owner-pin-value');
+      if (badge && pinVal) {
+        pinVal.textContent = roomInfoCache.pin;
+        badge.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
     if (storedUser) {
       let joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
       joined = joined.filter(r => r.code !== roomInfoCache.code);
@@ -1113,4 +1552,36 @@ function getCursorColor(socketId) {
     colorIdx++;
   }
   return peerColors[socketId];
+}
+// ── MUSIC PRESENCE (EventBus) ──────────────────────────────────
+if (window.EventBus) {
+  window.EventBus.on('MUSIC_PRESENCE_UPDATE', (state) => {
+    let presenceDiv = document.getElementById('room-music-presence');
+    if (!presenceDiv) {
+       presenceDiv = document.createElement('div');
+       presenceDiv.id = 'room-music-presence';
+       presenceDiv.style.padding = '8px 16px';
+       presenceDiv.style.borderTop = '1px solid var(--border)';
+       presenceDiv.style.background = 'var(--bg2)';
+       presenceDiv.style.fontSize = '12px';
+       presenceDiv.style.display = 'flex';
+       presenceDiv.style.alignItems = 'center';
+       presenceDiv.style.gap = '8px';
+       const sidebar = document.getElementById('room-sidebar');
+       if (sidebar) sidebar.appendChild(presenceDiv);
+    }
+
+    if (state.playing && state.track) {
+      presenceDiv.style.display = 'flex';
+      const art = state.track.thumbnail ? `<img src="${state.track.thumbnail}" style="width:20px;height:20px;border-radius:4px;object-fit:cover" />` : '';
+      presenceDiv.innerHTML = `
+        ${art}
+        <marquee scrollamount="2" style="flex:1;max-width:200px">
+          <strong>Listening:</strong> ${state.track.title}
+        </marquee>
+      `;
+    } else {
+      presenceDiv.style.display = 'none';
+    }
+  });
 }

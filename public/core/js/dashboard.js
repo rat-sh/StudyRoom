@@ -6,11 +6,56 @@ if (!token || !user) window.location.href = '/';
 let createdRoom = null;
 let scheduleData = JSON.parse(localStorage.getItem('sr_schedule') || '[]');
 
+// ── DASHBOARD SOCKET — realtime todo/presence updates ──────────
+// Dashboard has its own socket connection (separate from room.js)
+// so logged-in users get live updates even when not in a room.
+let _dashSocket = null;
+function _initDashSocket() {
+  if (_dashSocket) return;
+  _dashSocket = io({ transports: ['websocket'] });
+
+  // Join personal user room so server can target us directly
+  _dashSocket.on('connect', () => {
+    _dashSocket.emit('join-user-room', { userId: user.id });
+    // Re-init privacy listeners after reconnect
+    _initPrivacySocketListeners(_dashSocket);
+  });
+
+  // ── Bridge socket events → EventBus ──────────────────────────
+  _dashSocket.on('todo-created',  todo => EventBus.emit('TODO_CREATED', todo));
+  _dashSocket.on('todo-updated',  todo => {
+    EventBus.emit('TODO_UPDATED', todo);
+    const modal = document.getElementById('modal-todo-participants');
+    if (modal?.classList.contains('open')) {
+      const titleEl = document.getElementById('tp-title');
+      if (titleEl && titleEl.textContent === todo.title) openTodoParticipants(todo.id);
+    }
+  });
+  _dashSocket.on('todo-deleted', ({ id }) => EventBus.emit('TODO_DELETED', { id }));
+
+  // Media events
+  _dashSocket.on('FILE_UPLOADED', media => EventBus.emit('FILE_UPLOADED', media));
+  _dashSocket.on('MEDIA_SHARED',  media => EventBus.emit('MEDIA_SHARED', media));
+  _dashSocket.on('FILE_DELETED',  ({ id }) => EventBus.emit('FILE_DELETED', { id }));
+  _dashSocket.on('FILE_EDITED',   payload  => EventBus.emit('FILE_EDITED', payload));
+
+  // Subscribe to todos I'm a member of (for live progress bars)
+  _dashSocket.on('connect', () => {
+    (_todosCache || []).forEach(t => _dashSocket.emit('todo-subscribe', { todoId: t.id }));
+  });
+
+  // Room privacy: join-request notifications
+  _initPrivacySocketListeners(_dashSocket);
+}
+
 // ── INIT ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  // Populate user info
-  document.getElementById('sb-name').textContent = user.name;
-  document.getElementById('sb-avatar').textContent = initials(user.name);
+  if (typeof initAppSidebar === 'function') {
+    initAppSidebar('home');
+    applyDashboardPanelFromUrl();
+    if (window.lucide) lucide.createIcons();
+  }
+  populateSidebarUser();
   document.getElementById('settings-name').value = user.name;
   document.getElementById('settings-email').value = user.email;
 
@@ -32,32 +77,37 @@ window.addEventListener('DOMContentLoaded', () => {
 
   loadMe();
   loadBuddies();
-  loadTodos();
+  loadTodos().then(() => {
+    // Subscribe to all todo rooms after loading, then start socket
+    _initDashSocket();
+  });
   loadActivity();
-});
 
-// ── SIDEBAR ────────────────────────────────────────────────────
-let sbCollapsed = false;
-function toggleSidebarCollapse() {
-  sbCollapsed = !sbCollapsed;
-  document.getElementById('dash-layout').classList.toggle('sb-collapsed', sbCollapsed);
-  const icon = document.getElementById('sidebar-toggle-icon');
-  if (icon) {
-    icon.outerHTML = sbCollapsed
-      ? '<i data-lucide="chevrons-right" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>'
-      : '<i data-lucide="chevrons-left" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>';
-    if (window.lucide) lucide.createIcons();
+  // ── Mobile bottom sheet toggle (< 500px) ────────────────────
+  const rp = document.querySelector('.right-panel');
+  if (rp) {
+    rp.addEventListener('click', (e) => {
+      // Only toggle when clicking the ::before drag handle area (top 20px)
+      if (window.innerWidth <= 500 && e.offsetY < 20) {
+        rp.classList.toggle('rp-expanded');
+      }
+    });
   }
-}
+
+  applySidebarLayout();
+});
 
 // ── USER PROFILE / AVATAR ──────────────────────────────────────
 async function loadMe() {
   const { ok, data } = await API.get('/api/users/me', true);
   if (ok && data) {
     if (data.avatar_url) {
-      document.getElementById('sb-avatar').innerHTML = `<img src="${data.avatar_url}" alt="Avatar"/>`;
-      document.getElementById('rp-avatar').innerHTML = `<img src="${data.avatar_url}" alt="Avatar"/>`;
+      const img = `<img src="${data.avatar_url}" alt="Avatar"/>`;
+      document.getElementById('sb-avatar').innerHTML = img;
+      document.getElementById('rp-avatar').innerHTML = img;
     }
+    document.getElementById('sb-name-short').textContent = (data.name || user.name).split(' ')[0];
+    document.getElementById('sidebar-user-tooltip').textContent = data.name || user.name;
     document.getElementById('rp-name').textContent = data.name;
     document.getElementById('rp-email').textContent = data.email;
   }
@@ -221,101 +271,232 @@ async function removeFriend(id) {
   if (ok) loadBuddies();
 }
 
-// ── TO-DO LIST ─────────────────────────────────────────────────
+// ── TO-DO LIST v2 — multi-member, per-user completion ──────────────────
+let _todosCache = []; // local cache for socket updates
+let _todoSelectedMembers = []; // member ids selected in modal
+
 async function loadTodos() {
   const { ok, data } = await API.get('/api/todos', true);
   const list = document.getElementById('todo-list');
   if (!ok || !data) {
     list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">Failed to load tasks.</div>';
-    return;
+    return data;
   }
+  _todosCache = data;
+  renderTodos(data);
+  return data; // ← so _initDashSocket can subscribe to todo rooms
+}
 
-  const active = data.filter(t => !t.is_completed);
-  const completed = data.filter(t => t.is_completed);
 
+function renderTodos(data) {
+  const list = document.getElementById('todo-list');
   if (!data.length) {
     list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;text-align:center">No tasks yet. Hit + New Task!</div>';
     return;
   }
 
+  // Split: tasks I haven't completed vs. tasks I have
+  const active  = data.filter(t => !t.my_completed);
+  const done    = data.filter(t => t.my_completed);
+
   function todoItemHtml(t) {
-    const isShared = t.shared_with_user_id !== null;
-    let sharedTag = '';
-    if (isShared) {
-      if (t.creator?.id === user.id)
-        sharedTag = `<span class="todo-shared-badge" title="Shared with ${escapeHtml(t.shared_with?.name || '')}">Shared</span>`;
-      else
-        sharedTag = `<span class="todo-shared-badge" title="From ${escapeHtml(t.creator?.name || '')}">From ${escapeHtml((t.creator?.name || '').split(' ')[0])}</span>`;
-    }
-    const isDone = t.is_completed;
+    const pct = t.completion_pct || 0;
+    const total = t.total_members || 1;
+    const completed = t.completed_count || 0;
+    const isCreator = t.creator?.id === user.id;
+    const memberCount = total > 1 ? `<span style="font-size:10px;color:var(--muted);margin-left:4px">${total} members</span>` : '';
+
+    // Avatar stack (up to 3)
+    const avatarStack = (t.members || []).slice(0, 3).map(m => {
+      const initials = (m.name || '?').slice(0, 1).toUpperCase();
+      const done_style = m.completed ? 'border-color:var(--accent)' : 'border-color:var(--border2)';
+      return `<span title="${escapeHtml(m.name)}${m.completed ? ' ✓' : ''}" style="width:20px;height:20px;border-radius:50%;background:var(--bg3);border:2px solid;${done_style};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;margin-left:-4px;flex-shrink:0">${initials}</span>`;
+    }).join('');
+
     return `
-      <div class="todo-item">
-        <button class="todo-check ${isDone ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${isDone ? 'Mark incomplete' : 'Mark complete'}">
-          ${isDone ? `<lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json" background="transparent" speed="1" style="width: 14px; height: 14px;" autoplay></lottie-player>` : ''}
-        </button>
-        <div class="todo-text ${isDone ? 'done' : ''}">${escapeHtml(t.title)}</div>
-        ${sharedTag}
-        ${t.creator?.id === user.id ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f5d1/lottie.json" background="transparent" speed="1" style="width: 16px; height: 16px;" hover></lottie-player></button>` : ''}
+      <div class="todo-item" id="todo-${t.id}" style="display:flex;flex-direction:column;gap:6px;padding:10px 10px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);transition:border-color 0.2s">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="todo-check ${t.my_completed ? 'done' : ''}" onclick="toggleTodo('${t.id}')" title="${t.my_completed ? 'Mark incomplete' : 'Mark my completion'}" style="flex-shrink:0">
+            ${t.my_completed ? `<lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/2705/lottie.json" background="transparent" speed="1" style="width:14px;height:14px;" autoplay></lottie-player>` : ''}
+          </button>
+          <div style="flex:1;min-width:0">
+            <div class="todo-text ${t.my_completed ? 'done' : ''}" style="font-size:13px;font-weight:500">${escapeHtml(t.title)}</div>
+            ${t.description ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${escapeHtml(t.description)}</div>` : ''}
+          </div>
+          ${memberCount}
+          ${isCreator ? `<button class="todo-del" onclick="deleteTodo('${t.id}')" title="Delete" style="flex-shrink:0"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f5d1/lottie.json" background="transparent" speed="1" style="width:14px;height:14px;" hover></lottie-player></button>` : ''}
+        </div>
+        ${total > 1 ? `
+        <div onclick="openTodoParticipants('${t.id}')" style="cursor:pointer" title="Click to see who's done">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:4px">
+              ${avatarStack}
+              <span style="font-size:10px;color:var(--muted);margin-left:6px">${completed}/${total} done</span>
+            </div>
+            <span style="font-size:10px;font-weight:700;color:${pct===100?'var(--accent)':'var(--muted)'}">${pct}%</span>
+          </div>
+          <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${pct===100?'var(--accent)':'linear-gradient(90deg,var(--accent),#00cec9)'};border-radius:3px;transition:width 0.5s ease"></div>
+          </div>
+        </div>` : ''}
       </div>
     `;
   }
 
-  let html = '';
+  let html = active.map(todoItemHtml).join('') ||
+    '<div style="font-size:11px;color:var(--muted);padding:4px 0">All your tasks are done! 🎉</div>';
 
-  // Active tasks
-  if (active.length) {
-    html += active.map(todoItemHtml).join('');
-  } else {
-    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0">All tasks done! 🎉</div>';
-  }
-
-  // Completed history — collapsible
-  if (completed.length) {
+  if (done.length) {
     html += `
       <details style="margin-top:10px">
         <summary style="font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px;padding:4px 0">
-          <i data-lucide="check-circle-2" style="width:12px;height:12px"></i>
-          Completed (${completed.length})
+          <i data-lucide="check-circle-2" style="width:12px;height:12px"></i> Completed by me (${done.length})
         </summary>
-        <div style="margin-top:6px;opacity:0.65">
-          ${completed.map(todoItemHtml).join('')}
-        </div>
-      </details>
-    `;
+        <div style="margin-top:6px;opacity:0.65">${done.map(todoItemHtml).join('')}</div>
+      </details>`;
   }
 
   list.innerHTML = html;
   if (window.lucide) lucide.createIcons();
 }
 
+// ── Open participant details modal ──────────────────────────────────────
+function openTodoParticipants(todoId) {
+  const t = _todosCache.find(x => x.id === todoId);
+  if (!t) return;
+  document.getElementById('tp-title').textContent = escapeHtml(t.title);
+  document.getElementById('tp-subtitle').textContent = `${t.completed_count}/${t.total_members} completed · ${t.completion_pct}%`;
+
+  const memberList = document.getElementById('tp-members-list');
+  memberList.innerHTML = (t.members || []).map(m => {
+    const initials = (m.name || '?').slice(0, 1).toUpperCase();
+    const doneStyle = m.completed ? 'color:var(--accent)' : 'color:var(--muted)';
+    const doneLabel = m.completed
+      ? `<span style="font-size:11px;color:var(--accent);font-weight:600">✓ Done</span>`
+      : `<span style="font-size:11px;color:var(--muted)">Pending</span>`;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg2);border-radius:var(--radius-sm)">
+        <div style="width:34px;height:34px;border-radius:50%;background:var(--bg3);border:2px solid ${m.completed?'var(--accent)':'var(--border2)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">${initials}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${escapeHtml(m.name)}</div>
+          ${m.completed && m.completed_at ? `<div style="font-size:10px;color:var(--muted)">${new Date(m.completed_at).toLocaleString()}</div>` : ''}
+        </div>
+        ${doneLabel}
+      </div>`;
+  }).join('');
+
+  openModal('modal-todo-participants');
+}
+
+// ── Add todo modal — multi-member chips ─────────────────────────────────
 function openAddTodo() {
+  _todoSelectedMembers = [];
   document.getElementById('todo-title-input').value = '';
-  const select = document.getElementById('todo-share-select');
-  const accepted = buddiesList.filter(b => b.status === 'accepted');
-  select.innerHTML = '<option value="">Personal (just me)</option>' + 
-    accepted.map(b => `<option value="${b.friend.id}">Share with ${escapeHtml(b.friend.name)}</option>`).join('');
+  document.getElementById('todo-desc-input').value = '';
+  document.getElementById('todo-member-chips').innerHTML = '';
+  document.getElementById('todo-member-search').value = '';
+  document.getElementById('todo-buddy-dropdown').style.display = 'none';
   openModal('modal-todo');
   setTimeout(() => document.getElementById('todo-title-input').focus(), 200);
 }
 
+function filterTodoBuddies(query) {
+  const drop = document.getElementById('todo-buddy-dropdown');
+  const accepted = buddiesList.filter(b => b.status === 'accepted');
+  const q = query.toLowerCase().trim();
+  const filtered = accepted.filter(b =>
+    b.friend.name.toLowerCase().includes(q) &&
+    !_todoSelectedMembers.includes(b.friend.id)
+  );
+  if (!filtered.length || !q) { drop.style.display = 'none'; return; }
+  drop.innerHTML = filtered.map(b => `
+    <div onclick="addTodoMember('${b.friend.id}','${escapeHtml(b.friend.name)}')"
+         style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:background 0.15s"
+         onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <span style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:white;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${b.friend.name.slice(0,1).toUpperCase()}</span>
+      ${escapeHtml(b.friend.name)}
+    </div>`).join('');
+  drop.style.display = 'block';
+}
+
+function addTodoMember(id, name) {
+  if (_todoSelectedMembers.includes(id)) return;
+  _todoSelectedMembers.push(id);
+  const chips = document.getElementById('todo-member-chips');
+  const chip = document.createElement('div');
+  chip.id = `chip-${id}`;
+  chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600';
+  chip.innerHTML = `${escapeHtml(name)} <span onclick="removeTodoMember('${id}')" style="cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px">×</span>`;
+  chips.appendChild(chip);
+  document.getElementById('todo-member-search').value = '';
+  document.getElementById('todo-buddy-dropdown').style.display = 'none';
+}
+
+function removeTodoMember(id) {
+  _todoSelectedMembers = _todoSelectedMembers.filter(x => x !== id);
+  const chip = document.getElementById(`chip-${id}`);
+  if (chip) chip.remove();
+}
+
 async function saveTodo() {
-  const title = document.getElementById('todo-title-input').value;
-  const shared = document.getElementById('todo-share-select').value;
-  if (!title.trim()) return;
-  const { ok, data } = await API.post('/api/todos', { title, shared_with_user_id: shared || null }, true);
-  if (ok) { closeModal('modal-todo'); loadTodos(); }
-  else showToast(data.error || 'Failed to add task');
+  const title = document.getElementById('todo-title-input').value.trim();
+  const description = document.getElementById('todo-desc-input').value.trim();
+  if (!title) { showToast('Please enter a task title'); return; }
+  const { ok, data } = await API.post('/api/todos', {
+    title,
+    description: description || null,
+    member_ids: _todoSelectedMembers
+  }, true);
+  if (ok) {
+    closeModal('modal-todo');
+    _todosCache.unshift(data);
+    renderTodos(_todosCache);
+    // Subscribe to realtime updates for this new todo
+    if (_dashSocket) _dashSocket.emit('todo-subscribe', { todoId: data.id });
+    showToast('✅ Task created');
+  } else {
+    showToast(data?.error || 'Failed to add task');
+  }
 }
 
 async function toggleTodo(id) {
-  await API.patch(`/api/todos/${id}/toggle`, {}, true);
-  loadTodos(); // reload list
+  const { ok, data } = await API.patch(`/api/todos/${id}/toggle`, {}, true);
+  if (ok) {
+    // Update cache and re-render (no full reload)
+    const idx = _todosCache.findIndex(t => t.id === id);
+    if (idx !== -1) _todosCache[idx] = data;
+    renderTodos(_todosCache);
+  }
 }
 
 async function deleteTodo(id) {
-  await API.delete(`/api/todos/${id}`, true);
-  loadTodos();
+  const { ok } = await API.delete(`/api/todos/${id}`, true);
+  if (ok) {
+    _todosCache = _todosCache.filter(t => t.id !== id);
+    renderTodos(_todosCache);
+    showToast('🗑️ Task deleted');
+  }
 }
+
+// Realtime: socket updates for todos (when another member toggles)
+if (window.EventBus) {
+  EventBus.on('TODO_UPDATED', (todo) => {
+    const idx = _todosCache.findIndex(t => t.id === todo.id);
+    if (idx !== -1) { _todosCache[idx] = todo; renderTodos(_todosCache); }
+  });
+  EventBus.on('TODO_CREATED', (todo) => {
+    if (!_todosCache.find(t => t.id === todo.id)) {
+      _todosCache.unshift(todo);
+      renderTodos(_todosCache);
+    }
+  });
+  EventBus.on('TODO_DELETED', ({ id }) => {
+    _todosCache = _todosCache.filter(t => t.id !== id);
+    renderTodos(_todosCache);
+  });
+}
+
+
 
 // ── ACTIVITY CHART ─────────────────────────────────────────────
 async function loadActivity() {
@@ -345,22 +526,43 @@ async function loadActivity() {
 function setPanel(id, el) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('panel-' + id).classList.add('active');
+  const panel = document.getElementById('panel-' + id);
+  if (!panel) return;
+  panel.classList.add('active');
   if (el) el.classList.add('active');
   if (id === 'rooms') loadMyRooms();
-  if (id === 'schedule') renderSchedule();
+  if (id === 'friends') loadFriendsActivity();
+  if (id === 'media' && typeof loadMedia === 'function') loadMedia();
+  if (id === 'friends' && typeof renderBuddiesDropdown === 'function') loadBuddies().then(() => renderBuddiesDropdown());
+}
+
+function openBuddiesFromProfile(e) {
+  e?.stopPropagation();
+  setPanel('friends', document.getElementById('nav-friends'));
+  setTimeout(() => {
+    const dd = document.getElementById('buddies-dropdown');
+    if (dd) { renderBuddiesDropdown(); dd.classList.add('open'); }
+  }, 80);
 }
 
 // ── ROOMS ──────────────────────────────────────────────────────
+// ── BUG FIX: purge expired rooms from localStorage cache on every load
+function _purgeExpiredJoined() {
+  const now = new Date();
+  let joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  joined = joined.filter(r => !r.expires_at || new Date(r.expires_at) > now);
+  localStorage.setItem('sr_joined_rooms', JSON.stringify(joined));
+  return joined;
+}
+
 async function loadRooms() {
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  // Get live server rooms — these are the source of truth
+  const serverCodes = new Set((ok && data) ? data.map(r => r.code) : []);
+  // Purge expired entries, then also remove any that now exist in server list (avoid duplicates)
+  const joined = _purgeExpiredJoined().filter(jr => !serverCodes.has(jr.code));
   let all = (ok && data) ? [...data] : [];
-  joined.forEach(jr => {
-    if (!all.find(r => r.code === jr.code)) {
-      all.push({ ...jr, is_joined: true });
-    }
-  });
+  joined.forEach(jr => all.push({ ...jr, is_joined: true }));
   all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (all.length > 0) renderRoomList('recent-rooms', all);
@@ -372,13 +574,10 @@ async function loadMyRooms() {
   document.getElementById('my-rooms-list').innerHTML =
     '<div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>';
   const { ok, data } = await API.get('/api/rooms/mine', true);
-  const joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+  const serverCodes = new Set((ok && data) ? data.map(r => r.code) : []);
+  const joined = _purgeExpiredJoined().filter(jr => !serverCodes.has(jr.code));
   let all = (ok && data) ? [...data] : [];
-  joined.forEach(jr => {
-    if (!all.find(r => r.code === jr.code)) {
-      all.push({ ...jr, is_joined: true });
-    }
-  });
+  joined.forEach(jr => all.push({ ...jr, is_joined: true }));
   all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (all.length > 0) renderRoomList('my-rooms-list', all);
@@ -386,7 +585,7 @@ async function loadMyRooms() {
     '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet.</div>';
 }
 
-function renderRoomList(id, rooms) {
+function renderRoomList(id, rooms, showActions = true) {
   const el = document.getElementById(id);
   if (!rooms || !rooms.length) {
     el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet — create or join one above!</div>';
@@ -394,18 +593,34 @@ function renderRoomList(id, rooms) {
   }
   el.innerHTML = rooms.map(r => {
     const live = new Date(r.expires_at) > new Date();
+    const vis  = r.visibility || (r.is_public ? 'public' : 'private');
     const dateStr = new Date(r.created_at).toLocaleDateString('en', {month:'short',day:'numeric',year:'numeric'});
-    const isMyRooms = id === 'my-rooms-list';
+    const visiBadge = {
+      public:    '<span class="badge badge-public">🌐 Public</span>',
+      protected: '<span class="badge badge-protected">🔒 Protected</span>',
+      private:   '<span class="badge badge-private">🔐 Private</span>',
+    }[vis] || '';
+
+    // Friends-activity rooms: show Request Access instead of Enter
+    const isFriend = r._isFriendRoom;
+    const joinAction = isFriend && vis === 'protected'
+      ? `<button class="room-enter-btn" onclick="event.stopPropagation();openRequestAccess('${r.code}','${escapeHtml(r.name).replace(/'/g,"\\'")}')">Request Access</button>`
+      : isFriend && vis === 'public'
+      ? `<button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Join →</button>`
+      : showActions
+      ? `<button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}','${escapeHtml(r.name).replace(/'/g,"\\'")}')"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+         <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>`
+      : '';
+
     return `<div class="room-item" onclick="window.location.href='/room/${r.code}'">
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
         <strong>${escapeHtml(r.name)}</strong>
-        <span>${dateStr}${r.is_joined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
+        <span>${dateStr} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
       </div>
-      ${r.is_public ? '<span class="badge public">Public</span>' : ''}
+      ${visiBadge}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
-      <button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}', '${escapeHtml(r.name).replace(/'/g, "\\'")}')" title="Delete Room"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
-      <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>
+      ${joinAction}
     </div>`;
   }).join('');
   if (window.lucide) lucide.createIcons();
@@ -427,21 +642,27 @@ async function confirmDeleteRoom() {
   btn.disabled = true;
   const originalHtml = btn.innerHTML;
   btn.innerHTML = '<span class="spinner"></span> Deleting...';
-  
-  const headers = { 'Authorization': 'Bearer ' + token };
+  const codeBeingDeleted = roomToDelete;
+
   try {
-    const res = await fetch(`/api/rooms/${roomToDelete}`, { method: 'DELETE', headers });
+    const res = await fetch(`/api/rooms/${codeBeingDeleted}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to delete');
-    
-    showToast('Room permanently deleted');
+
+    // ── BUG FIX: remove from localStorage cache so it never ghost-reappears
+    let joined = JSON.parse(localStorage.getItem('sr_joined_rooms') || '[]');
+    joined = joined.filter(r => r.code !== codeBeingDeleted);
+    localStorage.setItem('sr_joined_rooms', JSON.stringify(joined));
+
+    showToast('✅ Room permanently deleted');
     closeModal('modal-delete');
-    loadRooms(); // Refresh lists
-    if (document.getElementById('panel-rooms').classList.contains('active')) {
-      loadMyRooms();
-    }
+    loadRooms();
+    if (document.getElementById('panel-rooms').classList.contains('active')) loadMyRooms();
   } catch (err) {
-    showToast(err.message);
+    showToast('❌ ' + err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
@@ -465,20 +686,25 @@ async function handleCreate() {
   if (createdRoom) { window.location.href = '/room/' + createdRoom.code; return; }
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
-  const name = document.getElementById('room-name-input').value.trim() || 'Study Room';
-  const topic = document.getElementById('room-topic').value;
-  const is_public = document.getElementById('room-public').checked;
-  const { ok, data } = await API.post('/api/rooms/create', { name, topic, is_public }, true);
+  const name       = document.getElementById('room-name-input').value.trim() || 'Study Room';
+  const topic      = document.getElementById('room-topic').value;
+  const visibility = document.getElementById('room-visibility')?.value || 'protected';
+  let payload = { name, topic, visibility };
+  let { ok, data } = await API.post('/api/rooms/create', payload, true);
+  if (!ok && data?.error?.includes('visibility')) {
+    payload = { name, topic, is_public: visibility === 'public' };
+    ({ ok, data } = await API.post('/api/rooms/create', payload, true));
+  }
   if (!ok) {
-    showToast('Failed to create room — ' + (data.error || 'please try again'));
+    showToast('Failed to create room — ' + (data?.error || 'please try again'));
     btn.disabled = false;
     btn.textContent = 'Create Room';
     return;
   }
   createdRoom = data;
   document.getElementById('room-code-display').textContent = data.code;
-  document.getElementById('room-pin-display').textContent = data.pin;
-  document.getElementById('share-link-text').textContent = `${window.location.origin}/join/${data.code}`;
+  document.getElementById('room-pin-display').textContent  = data.pin;
+  document.getElementById('share-link-text').textContent   = `${window.location.origin}/join/${data.code}`;
   document.getElementById('code-section').classList.remove('hidden');
   btn.disabled = false;
   btn.textContent = 'Go to Room →';
@@ -501,16 +727,60 @@ function openJoinLink() {
   openModal('modal-link');
 }
 
+// ── JOIN RESOLVER: handles public / protected / private logic ──
+async function _resolveRoomJoin(code, pin, errEl) {
+  const { ok: infoOk, data: info } = await API.get(`/api/rooms/info/${code}`, true);
+  if (!infoOk) { errEl.textContent = info.error || 'Room not found'; errEl.classList.remove('hidden'); return false; }
+
+  const vis = info.visibility || (info.is_public ? 'public' : 'private');
+
+  // PRIVATE — nothing exposed
+  if (vis === 'private') {
+    if (!pin || pin.length !== 4) { errEl.textContent = 'This room is private. Enter the PIN or use an invite link.'; errEl.classList.remove('hidden'); return false; }
+    const { ok, data } = await API.post('/api/rooms/validate', { code, pin });
+    if (!ok) { errEl.textContent = data.error || 'Wrong PIN'; errEl.classList.remove('hidden'); return false; }
+    return true;
+  }
+
+  if (new Date(info.expires_at) < new Date()) { errEl.textContent = 'This room has expired'; errEl.classList.remove('hidden'); return false; }
+
+  // PUBLIC — direct join, no PIN
+  if (vis === 'public') {
+    const { ok, data } = await API.post('/api/rooms/join-public', { code });
+    if (!ok) { errEl.textContent = data.error || 'Failed to join room'; errEl.classList.remove('hidden'); return false; }
+    return true;
+  }
+
+  // PROTECTED — need PIN or request access
+  if (vis === 'protected') {
+    if (pin && pin.length === 4) {
+      const { ok, data } = await API.post('/api/rooms/validate', { code, pin });
+      if (!ok) { errEl.textContent = data.error || 'Wrong PIN'; errEl.classList.remove('hidden'); return false; }
+      return true;
+    }
+    // No PIN — offer request access flow
+    errEl.textContent = 'This room is protected. Enter a PIN or request access from the owner.';
+    errEl.classList.remove('hidden');
+    // Show request-access modal if they are a friend
+    openRequestAccess(code, info.name || code);
+    return false;
+  }
+
+  // Fallback: PIN required
+  if (!pin || pin.length !== 4) { errEl.textContent = 'PIN must be exactly 4 digits'; errEl.classList.remove('hidden'); return false; }
+  const { ok, data } = await API.post('/api/rooms/validate', { code, pin });
+  if (!ok) { errEl.textContent = data.error || 'Room not found or wrong PIN'; errEl.classList.remove('hidden'); return false; }
+  return true;
+}
+
 async function doJoinFromDash() {
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   const pin = document.getElementById('join-pin').value.trim();
   const err = document.getElementById('join-err');
   err.classList.add('hidden');
   if (code.length < 4) { err.textContent = 'Enter a valid room code'; err.classList.remove('hidden'); return; }
-  if (pin.length !== 4) { err.textContent = 'PIN must be exactly 4 digits'; err.classList.remove('hidden'); return; }
-  const { ok, data } = await API.post('/api/rooms/validate', { code, pin });
-  if (!ok) { err.textContent = data.error || 'Room not found or wrong PIN'; err.classList.remove('hidden'); return; }
-  window.location.href = '/room/' + code;
+  const ok = await _resolveRoomJoin(code, pin, err);
+  if (ok) window.location.href = '/room/' + code;
 }
 
 async function doJoinLink() {
@@ -520,11 +790,9 @@ async function doJoinLink() {
   err.classList.add('hidden');
   const match = link.match(/\/join\/([A-Z0-9]{4,8})/i) || link.match(/\/room\/([A-Z0-9]{4,8})/i);
   if (!match) { err.textContent = 'Invalid invite link'; err.classList.remove('hidden'); return; }
-  if (pin.length !== 4) { err.textContent = 'PIN must be exactly 4 digits'; err.classList.remove('hidden'); return; }
   const code = match[1].toUpperCase();
-  const { ok, data } = await API.post('/api/rooms/validate', { code, pin });
-  if (!ok) { err.textContent = data.error || 'Room not found or wrong PIN'; err.classList.remove('hidden'); return; }
-  window.location.href = '/room/' + code;
+  const ok = await _resolveRoomJoin(code, pin, err);
+  if (ok) window.location.href = '/room/' + code;
 }
 
 // ── COPY HELPERS ────────────────────────────────────────────────
@@ -610,8 +878,6 @@ function renderSchedule() {
 }
 
 // ── MODALS ──────────────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
@@ -622,9 +888,220 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('modal-join').classList.contains('open')) doJoinFromDash();
 });
 
-// ── LOGOUT ──────────────────────────────────────────────────────
-function logout() {
-  localStorage.removeItem('sr_token');
-  localStorage.removeItem('sr_user');
-  window.location.href = '/';
+// ── MUSIC PRESENCE (EventBus) ──────────────────────────────────
+if (window.EventBus) {
+  window.EventBus.on('MUSIC_PRESENCE_UPDATE', (state) => {
+    const presenceBox = document.getElementById('sb-music-presence');
+    const art = document.getElementById('sb-music-art');
+    const txt = document.getElementById('sb-music-text');
+    if (!presenceBox || !art || !txt) return;
+
+    if (state.playing && state.track) {
+      presenceBox.style.display = 'flex';
+      txt.textContent = 'Listening to ' + state.track.title + ' • ' + state.track.artist;
+      if (state.track.thumbnail) {
+        art.src = state.track.thumbnail;
+        art.style.display = 'block';
+      } else {
+        art.style.display = 'none';
+      }
+    } else {
+      presenceBox.style.display = 'none';
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ROOM PRIVACY SYSTEM — NEW FUNCTIONS
+// ══════════════════════════════════════════════════════════════════
+
+// ── Visibility selector in Create Room modal ─────────────────────
+function selectVisibility(vis) {
+  document.getElementById('room-visibility').value = vis;
+  ['public', 'protected', 'private'].forEach(v => {
+    const el = document.getElementById(`vopt-${v}`);
+    if (!el) return;
+    if (v === vis) {
+      el.style.border = '2px solid var(--accent)';
+      el.style.background = 'var(--accent-faint, rgba(99,102,241,0.08))';
+    } else {
+      el.style.border = '2px solid var(--border)';
+      el.style.background = '';
+    }
+  });
+}
+
+// ── Friends Activity — rooms visible to me ────────────────────────
+async function loadFriendsActivity() {
+  const el = document.getElementById('friends-activity-list');
+  if (!el) return;
+  const { ok, data } = await API.get('/api/rooms/friends-activity', true);
+  if (!ok || !data.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">No active rooms from your buddies right now.</div>';
+    return;
+  }
+  const tagged = data.map(r => ({ ...r, _isFriendRoom: true }));
+  renderRoomList('friends-activity-list', tagged, false);
+}
+
+// ── Request Access (Protected Room) ──────────────────────────────
+let _requestAccessCode = null;
+function openRequestAccess(code, name) {
+  _requestAccessCode = code;
+  const nameEl = document.getElementById('ra-room-name');
+  const codeEl = document.getElementById('ra-room-code');
+  if (nameEl) nameEl.textContent = name || code;
+  if (codeEl) codeEl.textContent = code;
+  const msgEl = document.getElementById('ra-message');
+  if (msgEl) msgEl.value = '';
+  openModal('modal-request-access');
+}
+
+async function submitJoinRequest() {
+  if (!_requestAccessCode) return;
+  const message = document.getElementById('ra-message')?.value.trim() || '';
+  const { ok, data } = await API.post('/api/rooms/request-join', {
+    code: _requestAccessCode,
+    message,
+  }, true);
+
+  if (!ok) {
+    showToast('❌ ' + (data.error || 'Could not send request'));
+    return;
+  }
+
+  // Also push via socket so owner gets real-time notification
+  if (window._dashSocket) {
+    window._dashSocket.emit('room-join-request', {
+      roomCode:      _requestAccessCode,
+      requesterId:   user.id,
+      requesterName: user.name || user.email || 'Someone',
+      message,
+    });
+  }
+
+  closeModal('modal-request-access');
+  showToast('✅ Access request sent! Waiting for owner approval.');
+}
+
+// ── Owner: respond to a join request ─────────────────────────────
+let _pendingJoinRequest = null; // { requesterId, roomCode, requestId }
+
+async function respondToJoinRequest(decision) {
+  if (!_pendingJoinRequest) return;
+  const { requesterId, roomCode, requestId } = _pendingJoinRequest;
+
+  const { ok, data } = await API.post('/api/rooms/respond-request', { requestId, decision }, true);
+  if (!ok) { showToast('Failed to respond: ' + (data.error || '')); return; }
+
+  // Notify requester via socket
+  if (window._dashSocket) {
+    window._dashSocket.emit('room-request-respond', {
+      requesterId,
+      roomCode,
+      decision,
+      pin: decision === 'accepted' ? data.pin : null,
+    });
+  }
+
+  document.getElementById('join-request-bar').style.display = 'none';
+  _pendingJoinRequest = null;
+  showToast(decision === 'accepted' ? '✅ Access granted!' : '🚫 Request rejected');
+}
+
+// ── Requester: join after being approved ──────────────────────────
+let _approvedRoomCode = null;
+function joinAfterApproval() {
+  if (_approvedRoomCode) window.location.href = '/room/' + _approvedRoomCode;
+}
+
+// ── User Search (by email / name) ────────────────────────────────
+async function searchUsers(query) {
+  const resultsEl = document.getElementById('user-search-results');
+  if (!resultsEl) return;
+  if (!query || query.length < 2) { resultsEl.innerHTML = ''; return; }
+
+  const { ok, data } = await API.get(`/api/rooms/users/search?q=${encodeURIComponent(query)}`, true);
+  if (!ok || !data.length) {
+    resultsEl.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px">No users found.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:default">
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">
+        ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : (u.name||'?')[0].toUpperCase()}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">${escapeHtml(u.name || 'Unknown')}</div>
+        <div style="font-size:11px;color:var(--muted)">${escapeHtml(u.email || '')}</div>
+      </div>
+      ${u.is_friend
+        ? '<span style="font-size:11px;color:#22c55e;font-weight:600">✓ Buddy</span>'
+        : `<button onclick="sendFriendRequestFromSearch('${u.id}')" style="padding:4px 12px;border-radius:6px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer">Add Buddy</button>`
+      }
+    </div>`).join('');
+}
+
+async function sendFriendRequestFromSearch(userId) {
+  const { ok, data } = await API.post(`/api/friends/request/${userId}`, {}, true);
+  if (ok) { showToast('✅ Buddy request sent!'); searchUsers(document.getElementById('user-search-input')?.value || ''); }
+  else showToast('❌ ' + (data.error || 'Failed to send request'));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SOCKET: real-time join-request notifications
+// ══════════════════════════════════════════════════════════════════
+function _initPrivacySocketListeners(sock) {
+  window._dashSocket = sock;
+
+  // Owner receives a join request from a friend
+  sock.on('room-join-request-incoming', async ({ roomCode, requesterId, requesterName, message, requestedAt }) => {
+    // Fetch pending request id from server (for the respond API)
+    const { ok, data: pending } = await API.get('/api/rooms/pending-requests', true);
+    const req = ok ? pending.find(r => r.requester_id === requesterId && r.room_code === roomCode) : null;
+
+    _pendingJoinRequest = { requesterId, roomCode, requestId: req?.id };
+
+    const bar = document.getElementById('join-request-bar');
+    const txt = document.getElementById('jrb-text');
+    if (bar && txt) {
+      txt.textContent = `🔔 ${requesterName} wants to join your protected room (${roomCode})${message ? ': "' + message + '"' : ''}`;
+      bar.style.display = 'flex';
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+
+  // Requester receives the decision
+  sock.on('room-request-decision', ({ roomCode, decision, pin }) => {
+    const bar = document.getElementById('request-decision-bar');
+    const txt = document.getElementById('rdb-text');
+    const joinBtn = document.getElementById('rdb-join-btn');
+    if (!bar || !txt) return;
+
+    if (decision === 'accepted') {
+      _approvedRoomCode = roomCode;
+      bar.style.background = '#16a34a';
+      bar.style.color = '#fff';
+      txt.textContent = `✅ Your access request for room ${roomCode} was accepted!`;
+      if (joinBtn) { joinBtn.style.display = 'block'; }
+      // If PIN returned, store it for direct join
+      if (pin) { window._approvedPin = pin; }
+    } else {
+      bar.style.background = '#dc2626';
+      bar.style.color = '#fff';
+      txt.textContent = `🚫 Your access request for room ${roomCode} was rejected.`;
+      if (joinBtn) joinBtn.style.display = 'none';
+    }
+    bar.style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { if (bar) bar.style.display = 'none'; }, 12000);
+  });
+}
+
+// Override joinAfterApproval to auto-use PIN if available
+function joinAfterApproval() {
+  if (!_approvedRoomCode) return;
+  const pin = window._approvedPin || '';
+  window.location.href = `/room/${_approvedRoomCode}${pin ? '?pin=' + pin : ''}`;
 }

@@ -327,11 +327,25 @@ async function loadState() {
 loadState();
 
 // ── EXPORT ───────────────────────────────────────────────────
-window.exportImage = function() {
+window.exportImage = async function() {
   const dataURL = canvas.toDataURL({
     format: 'png',
     quality: 1
   });
+  
+  // Sync to Media Hub
+  if (window.parent.API) {
+    window.parent.API.post('/api/media/upload', {
+      fileName: `Whiteboard_${roomCode || 'export'}_${Date.now()}.png`,
+      fileType: 'image',
+      mimeType: 'image/png',
+      fileSize: Math.round(dataURL.length * 0.75),
+      data: dataURL,
+      source: 'room',
+      roomCode
+    });
+  }
+
   const link = document.createElement('a');
   link.download = `whiteboard-${roomCode || 'export'}.png`;
   link.href = dataURL;
@@ -356,6 +370,20 @@ window.exportPDF = function() {
   });
   
   pdf.addImage(dataURL, 'PNG', 0, 0, canvas.width, canvas.height);
+  
+  const b64Pdf = pdf.output('datauristring');
+  if (window.parent.API) {
+    window.parent.API.post('/api/media/upload', {
+      fileName: `Whiteboard_${roomCode || 'export'}_${Date.now()}.pdf`,
+      fileType: 'pdf',
+      mimeType: 'application/pdf',
+      fileSize: Math.round(b64Pdf.length * 0.75),
+      data: b64Pdf,
+      source: 'room',
+      roomCode
+    });
+  }
+
   pdf.save(`whiteboard-${roomCode || 'export'}.pdf`);
 };
 
