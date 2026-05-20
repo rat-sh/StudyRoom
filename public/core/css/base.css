@@ -1,10 +1,10 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --accent:#00B894;
-  --accent2:#55EFC4;
-  --accent-dark:#008F72;
-  --accent-light:rgba(0,184,148,0.12);
-  --accent-muted:rgba(0,184,148,0.3);
+  --accent:#6C63FF;
+  --accent2:#8F85FF;
+  --accent-dark:#5A52E0;
+  --accent-light:rgba(108,99,255,0.12);
+  --accent-muted:rgba(108,99,255,0.3);
   --bg:#F8FAFC;
   --bg2:#FFFFFF;
   --bg3:#F1F5F9;
@@ -84,7 +84,7 @@ button{cursor:pointer}
 @keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes burst{0%{transform:scale(0) translateY(0);opacity:1}100%{transform:scale(1.5) translateY(-60px);opacity:0}}
-@keyframes glowPulse{0%,100%{box-shadow:0 0 10px rgba(0,184,148,0.3)}50%{box-shadow:0 0 25px rgba(0,184,148,0.6)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 10px rgba(108,99,255,0.3)}50%{box-shadow:0 0 25px rgba(108,99,255,0.6)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes ripple{0%{transform:scale(0);opacity:0.6}100%{transform:scale(2.5);opacity:0}}
 @keyframes tileEnter{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
@@ -128,3 +128,33 @@ button{cursor:pointer}
 }
 .icon-btn:hover{ background:var(--bg4); }
 
+/* ── INTERACTIVE CURSOR ── */
+.custom-cursor-dot {
+  position: fixed; top: 0; left: 0;
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 100000;
+  transition: opacity 0.2s, width 0.2s, height 0.2s;
+}
+.custom-cursor-ring {
+  position: fixed; top: 0; left: 0;
+  width: 36px; height: 36px;
+  border: 2px solid var(--accent-muted);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99999;
+  transition: width 0.25s cubic-bezier(0.2, 1, 0.2, 1), 
+              height 0.25s cubic-bezier(0.2, 1, 0.2, 1), 
+              background-color 0.25s ease, 
+              border-color 0.25s ease;
+}
+body.cursor-hover .custom-cursor-dot {
+  opacity: 0;
+}
+body.cursor-hover .custom-cursor-ring {
+  width: 52px; height: 52px;
+  background-color: var(--accent-light);
+  border-color: transparent;
+}
