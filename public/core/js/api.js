@@ -12,7 +12,7 @@ const API = {
   async get(url, auth = false) {
     const headers = {};
     if (auth) headers['Authorization'] = 'Bearer ' + this.token();
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, cache: 'no-store' });
     return { ok: res.ok, status: res.status, data: await res.json() };
   },
 
@@ -101,6 +101,7 @@ function goHome() {
   window.location.href = API.user() ? '/dashboard' : '/';
 }
 
+
 function openModal(id) {
   document.getElementById(id)?.classList.add('open');
 }
@@ -114,3 +115,54 @@ function logout() {
   sessionStorage.removeItem('sr_guest');
   window.location.href = '/';
 }
+
+// ── INTERACTIVE CURSOR ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.matchMedia("(pointer: fine)").matches) return;
+
+  const dot = document.createElement('div');
+  dot.className = 'custom-cursor-dot';
+  const ring = document.createElement('div');
+  ring.className = 'custom-cursor-ring';
+  
+  document.body.appendChild(ring);
+  document.body.appendChild(dot);
+  
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let ringX = mouseX;
+  let ringY = mouseY;
+  let isDown = false;
+  
+  const style = document.createElement('style');
+  style.innerHTML = `*:not(input):not(textarea) { cursor: none !important; }`;
+  document.head.appendChild(style);
+
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    dot.style.transform = `translate(calc(${mouseX}px - 50%), calc(${mouseY}px - 50%))`;
+  });
+  
+  const loop = () => {
+    ringX += (mouseX - ringX) * 0.25;
+    ringY += (mouseY - ringY) * 0.25;
+    const scale = isDown ? ' scale(0.85)' : ' scale(1)';
+    ring.style.transform = `translate(calc(${ringX}px - 50%), calc(${ringY}px - 50%))` + scale;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  
+  document.addEventListener('mouseover', e => {
+    const t = e.target;
+    const isClickable = t.tagName === 'A' || t.tagName === 'BUTTON' || t.closest('a') || t.closest('button') || t.onclick || window.getComputedStyle(t).cursor === 'pointer';
+    if (isClickable) {
+      document.body.classList.add('cursor-hover');
+    } else {
+      document.body.classList.remove('cursor-hover');
+    }
+  });
+  
+  document.addEventListener('mousedown', () => isDown = true);
+  document.addEventListener('mouseup', () => isDown = false);
+});

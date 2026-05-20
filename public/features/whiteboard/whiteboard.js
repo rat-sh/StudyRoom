@@ -1,7 +1,7 @@
 // ── STATE ──────────────────────────────────────────────────────
 const roomCode = new URLSearchParams(window.location.search).get('room');
 let currentTool = 'select';
-let currentColor = '#00B894';
+let currentColor = '#6C63FF';
 let currentSize = 4;
 let isPanning = false;
 
