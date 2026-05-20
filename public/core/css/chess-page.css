@@ -1,0 +1,248 @@
+.chess-app {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.chess-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.chess-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.chess-toolbar select,
+.chess-toolbar button,
+.chess-toolbar input {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.chess-toolbar button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#board {
+  width: min(560px, 100%);
+  max-width: 100%;
+}
+
+.chess-status-row {
+  width: min(560px, 100%);
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.chess-side {
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chess-side-header {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chess-pvp-panel {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chess-pvp-panel input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.chess-pvp-meta {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.chess-pvp-meta strong { color: var(--text); }
+
+.chess-chat-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chess-chat-label {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.chess-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chess-chat-msg {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  background: var(--bg3);
+  border-radius: 8px;
+  word-break: break-word;
+}
+
+.chess-chat-msg .who {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.chess-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.chess-chat-input-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.chess-chat-input-row button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chess-voice-panel {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  display: none;
+}
+.chess-voice-panel.active {
+  display: block;
+}
+.chess-voice-status {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+.chess-voice-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.chess-voice-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.chess-voice-btn:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--accent);
+}
+.chess-voice-btn.on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.chess-voice-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chess-voice-btn.icon {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.chess-voice-btn.icon.muted {
+  background: rgba(255, 71, 87, 0.15);
+  border-color: rgba(255, 71, 87, 0.4);
+  color: var(--danger, #ff4757);
+}
+
+.white-1e1d7 {
+  background-color: rgb(234, 235, 200) !important;
+  color: rgb(119, 154, 88) !important;
+}
+.black-3c85d {
+  background-color: rgb(119, 154, 88) !important;
+  color: rgb(234, 235, 200) !important;
+}
+.highlight-white { background-color: rgb(244, 247, 116) !important; }
+.highlight-black { background-color: rgb(172, 195, 51) !important; }
+
+@media (max-width: 900px) {
+  .chess-app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .chess-side { max-height: 280px; border-left: none; border-top: 1px solid var(--border); }
+}

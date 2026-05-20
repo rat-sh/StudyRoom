@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat — StudyRoom</title>
+  <meta name="description" content="Real-time direct messages and group chats for StudyRoom"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"/>
+  <link rel="stylesheet" href="/core/css/base.css"/>
+  <link rel="stylesheet" href="/core/css/app-shell.css"/>
+  <link rel="stylesheet" href="/core/css/chat.css"/>
+</head>
+<body>
+<div class="app-shell" id="app-shell">
+  <aside class="sidebar" id="app-sidebar"></aside>
+  <div class="app-content">
+<div class="chat-layout" id="chat-layout">
+
+  <!-- ── LEFT: Conversation List ── -->
+  <aside class="chat-sidebar" id="chat-sidebar">
+    <div class="chat-sidebar-header">
+      <div class="chat-sidebar-title">
+        <i data-lucide="message-square" style="width:18px;height:18px"></i>
+        Messages
+      </div>
+      <button class="icon-btn" onclick="openNewChatModal()" title="New chat" id="new-chat-btn">
+        <i data-lucide="pencil" style="width:16px;height:16px"></i>
+      </button>
+    </div>
+
+    <div class="chat-search-wrap">
+      <i data-lucide="search" style="width:14px;height:14px;color:var(--muted);position:absolute;left:10px;top:50%;transform:translateY(-50%)"></i>
+      <input type="text" id="chat-search" placeholder="Search chats…" oninput="filterChats(this.value)" autocomplete="off"/>
+    </div>
+
+    <div class="chat-list" id="chat-list">
+      <div class="chat-list-loading">Loading chats…</div>
+    </div>
+  </aside>
+
+  <!-- ── RIGHT: Active Chat ── -->
+  <main class="chat-main" id="chat-main">
+
+    <!-- Empty state -->
+    <div class="chat-empty-state" id="chat-empty">
+      <div class="chat-empty-icon">💬</div>
+      <h2>Your Messages</h2>
+      <p>Select a conversation or start a new one</p>
+      <button class="btn-go" onclick="openNewChatModal()">
+        <i data-lucide="pencil" style="width:14px;height:14px"></i> New Chat
+      </button>
+    </div>
+
+    <!-- Active conversation -->
+    <div class="chat-convo" id="chat-convo" style="display:none">
+
+      <!-- Header -->
+      <div class="chat-convo-header" id="chat-header">
+        <button class="icon-btn chat-back-btn" onclick="closeConvo()" title="Back" id="chat-back-btn">
+          <i data-lucide="arrow-left" style="width:16px;height:16px"></i>
+        </button>
+        <div class="chat-peer-avatar" id="chat-peer-avatar"></div>
+        <div class="chat-peer-info">
+          <div class="chat-peer-name" id="chat-peer-name">—</div>
+          <div class="chat-peer-status" id="chat-peer-status">Offline</div>
+        </div>
+        <div class="chat-header-actions">
+          <button class="icon-btn" onclick="startMeetWithPeer()" title="Meet now" id="meet-btn">
+            <i data-lucide="video" style="width:16px;height:16px"></i>
+          </button>
+          <button class="icon-btn" onclick="startGameWithPeer()" title="Play" id="game-btn">
+            <i data-lucide="gamepad-2" style="width:16px;height:16px"></i>
+          </button>
+          <button class="icon-btn" onclick="toggleMusicPanel()" title="Shared Music" id="music-toggle-btn" style="position:relative">
+            <i data-lucide="music" style="width:16px;height:16px"></i>
+            <span id="music-now-playing-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;background:#22c55e;border-radius:50%;border:1px solid var(--bg)"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible Music Panel -->
+      <div id="chat-music-panel" style="display:none;flex-direction:column;border-bottom:1px solid var(--border);background:var(--bg2)">
+        <div style="padding:8px 14px 4px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--muted);text-transform:uppercase">🎵 Shared Music</span>
+          <span style="font-size:10px;color:var(--muted)">Commands: /play /pause /skip /queue /flush /stop</span>
+        </div>
+        <div id="music-messages" style="max-height:280px;overflow-y:auto;padding:4px 0"></div>
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--border)">
+          <input type="text" id="chat-music-input"
+            placeholder="Search a song, or try /play lofi chill…"
+            style="flex:1;padding:8px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;outline:none"
+            onkeypress="if(event.key==='Enter') sendChatMusicCommand()"
+            autocomplete="off"/>
+          <button onclick="sendChatMusicCommand()" title="Play" style="width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">▶</button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msgs-loading" id="chat-msgs-loading">Loading…</div>
+      </div>
+
+      <!-- Typing indicator -->
+      <div class="chat-typing" id="chat-typing" style="display:none">
+        <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+        <span class="typing-label" id="typing-label"></span>
+      </div>
+
+      <!-- Reply preview -->
+      <div class="chat-reply-preview" id="reply-preview" style="display:none">
+        <i data-lucide="corner-up-left" style="width:12px;height:12px;color:var(--accent)"></i>
+        <span id="reply-preview-text"></span>
+        <button onclick="cancelReply()" class="reply-cancel">×</button>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <button class="icon-btn" onclick="triggerFileUpload()" title="Attach file">
+          <i data-lucide="paperclip" style="width:16px;height:16px"></i>
+        </button>
+        <input type="file" id="chat-file-input" style="display:none" multiple
+               onchange="handleFileAttachment(this)" accept="image/*,video/*,.pdf,.doc,.docx"/>
+        <div class="chat-input-wrap">
+          <div class="chat-input" id="chat-input"
+               contenteditable="true"
+               data-placeholder="Message…"
+               onkeydown="handleInputKey(event)"
+               oninput="handleTyping()"></div>
+        </div>
+        <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()" title="Send">
+          <i data-lucide="send" style="width:16px;height:16px"></i>
+        </button>
+      </div>
+
+    </div>
+  </main>
+</div>
+  </div>
+</div>
+
+<!-- ── NEW CHAT MODAL ── -->
+<div class="modal-overlay" id="modal-new-chat">
+  <div class="modal" style="max-width:400px">
+    <h2 style="display:flex;align-items:center;gap:8px">
+      <i data-lucide="message-square-plus" style="width:18px;height:18px"></i>
+      New Chat
+    </h2>
+    <div class="tab-row" style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="tab-pill active" id="tab-dm" onclick="setNewChatTab('dm')">Direct Message</button>
+      <button class="tab-pill" id="tab-group" onclick="setNewChatTab('group')">Group Chat</button>
+    </div>
+
+    <!-- DM tab -->
+    <div id="new-chat-dm">
+      <div class="field">
+        <label>Search buddies</label>
+        <input type="text" id="new-dm-search" placeholder="Type a name…" oninput="filterNewDM(this.value)" autocomplete="off"/>
+        <div id="new-dm-results" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- Group tab -->
+    <div id="new-chat-group" style="display:none">
+      <div class="field">
+        <label>Group name</label>
+        <input type="text" id="new-group-name" placeholder="e.g. Study Squad" maxlength="50"/>
+      </div>
+      <div class="field">
+        <label>Add members</label>
+        <div id="group-member-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:28px"></div>
+        <input type="text" id="new-group-search" placeholder="Search buddies…" oninput="filterGroupMembers(this.value)" autocomplete="off"/>
+        <div id="new-group-results" style="margin-top:8px;max-height:160px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('modal-new-chat')">Cancel</button>
+        <button class="btn-go" onclick="createGroupChat()">Create Group</button>
+      </div>
+    </div>
+
+    <div class="modal-actions" id="dm-modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-new-chat')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── REACTION PICKER POPUP ── -->
+<div id="reaction-picker" class="reaction-picker-popup" style="display:none">
+  <span class="reaction-opt" onclick="pickReaction('👍')">👍</span>
+  <span class="reaction-opt" onclick="pickReaction('❤️')">❤️</span>
+  <span class="reaction-opt" onclick="pickReaction('😂')">😂</span>
+  <span class="reaction-opt" onclick="pickReaction('😮')">😮</span>
+  <span class="reaction-opt" onclick="pickReaction('😢')">😢</span>
+  <span class="reaction-opt" onclick="pickReaction('🔥')">🔥</span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden YT Player for audio -->
+<div id="yt-player" style="position:absolute;width:1px;height:1px;top:-9999px;left:-9999px;"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/core/js/api.js"></script>
+<script src="/core/js/event-bus.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="/features/music/music-bot.js"></script>
+<script src="/core/js/app-nav.js"></script>
+<script src="/core/js/buddies-ui.js"></script>
+<script src="/core/js/chat.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>initAppSidebar('chat'); if (window.lucide) lucide.createIcons();</script>
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+</body>
+</html>

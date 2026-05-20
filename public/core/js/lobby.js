@@ -34,11 +34,13 @@ function getAvatarColor(name) {
 function initGuestIdentity() {
   const loggedUser = window.API?.user();
 
+  document.getElementById('auth-links').style.display = 'none';
+
   if (loggedUser) {
-    // ── LOGGED-IN STATE ──────────────────────────────────────────
     document.getElementById('logged-identity').style.display = 'flex';
-    document.getElementById('auth-links').style.display      = 'none';
-    document.getElementById('guest-identity').style.display  = 'none';
+    document.getElementById('guest-identity').style.display = 'none';
+    document.getElementById('logged-buddies-wrap').style.display = 'block';
+    document.getElementById('dash-link').style.display = 'inline-flex';
 
     const initStr = initials(loggedUser.name);
     const color   = getAvatarColor(loggedUser.name);
@@ -46,6 +48,12 @@ function initGuestIdentity() {
     avEl.textContent        = initStr;
     avEl.style.background   = color;
     document.getElementById('logged-nav-name').textContent = loggedUser.name;
+    const sub = document.getElementById('join-modal-sub');
+    if (sub) sub.textContent = 'Logged in — join with your account name or pick a nickname';
+    const hero = document.getElementById('lobby-hero-sub');
+    if (hero) hero.textContent = `Signed in as ${loggedUser.name} — join rooms instantly`;
+    const kl = document.getElementById('join-known-label');
+    if (kl) kl.textContent = loggedUser.name.split(' ')[0];
 
   } else {
     // ── GUEST STATE ──────────────────────────────────────────────
@@ -56,9 +64,14 @@ function initGuestIdentity() {
       sessionStorage.setItem('sr_guest_display_name', guestName);
     }
 
-    document.getElementById('guest-identity').style.display  = 'flex';
-    document.getElementById('auth-links').style.display      = 'flex';
+    document.getElementById('guest-identity').style.display = 'flex';
     document.getElementById('logged-identity').style.display = 'none';
+    document.getElementById('logged-buddies-wrap').style.display = 'none';
+    document.getElementById('dash-link').style.display = 'none';
+    const sub = document.getElementById('join-modal-sub');
+    if (sub) sub.textContent = 'Guest mode — random name or type your own below';
+    const hero = document.getElementById('lobby-hero-sub');
+    if (hero) hero.textContent = 'Browsing as guest — join any room with a random or custom name';
 
     const color = getAvatarColor(guestName);
     const avEl  = document.getElementById('guest-nav-avatar');
@@ -77,7 +90,16 @@ function goHome() {
   window.location.href = window.API?.user() ? '/dashboard' : '/';
 }
 
+function joinAsKnown() {
+  const u = API.user();
+  if (!u || !selectedCode) return;
+  sessionStorage.setItem('sr_guest', JSON.stringify({ name: u.name, guest: false, id: u.id }));
+  window.location.href = '/room/' + selectedCode;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  initAppSidebar('lobby');
+  if (window.lucide) lucide.createIcons();
   initGuestIdentity();
   loadRooms();
 });
@@ -136,8 +158,16 @@ function renderRooms(rooms) {
 
 function openNameModal(code) {
   selectedCode = code;
+  const u = API.user();
+  const knownBtn = document.getElementById('join-known-btn');
+  if (knownBtn) knownBtn.style.display = u ? 'block' : 'none';
+  const inp = document.getElementById('guest-name-input');
+  if (inp) {
+    if (u) inp.value = u.name;
+    else if (!inp.value) inp.value = sessionStorage.getItem('sr_guest_display_name') || generateGuestName();
+  }
   document.getElementById('name-modal').classList.add('open');
-  setTimeout(() => document.getElementById('guest-name-input').focus(), 150);
+  setTimeout(() => inp?.focus(), 150);
 }
 
 function closeNameModal() {
@@ -146,10 +176,9 @@ function closeNameModal() {
 }
 
 function joinAnonymous() {
-  const adjs = ['Clever', 'Swift', 'Silent', 'Brave', 'Mighty', 'Bright', 'Calm', 'Fast', 'Smart', 'Happy'];
-  const nouns = ['Panda', 'Fox', 'Owl', 'Tiger', 'Bear', 'Wolf', 'Hawk', 'Lion', 'Eagle', 'Koala'];
-  const name = adjs[Math.floor(Math.random()*adjs.length)] + ' ' + nouns[Math.floor(Math.random()*nouns.length)];
+  const name = generateGuestName();
   document.getElementById('guest-name-input').value = name;
+  sessionStorage.setItem('sr_guest_display_name', name);
   confirmJoin();
 }
 

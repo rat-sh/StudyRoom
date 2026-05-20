@@ -33,4 +33,8 @@ router.post('/login', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.post('/logout', (_req, res) => {
+  res.json({ ok: true });
+});
+
 export default router;

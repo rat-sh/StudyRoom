@@ -89,3 +89,42 @@ button{cursor:pointer}
 @keyframes ripple{0%{transform:scale(0);opacity:0.6}100%{transform:scale(2.5);opacity:0}}
 @keyframes tileEnter{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 
+/* ── SHARED MODALS & BUTTONS (dashboard, chat, room) ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.55);
+  display:none;align-items:center;justify-content:center;
+  z-index:800;backdrop-filter:blur(4px);
+}
+.modal-overlay.open{ display:flex; }
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:1.5rem;
+  width:480px;max-width:calc(100vw - 2rem);
+  box-shadow:var(--shadow);
+}
+.modal h2{ font-size:1.1rem;margin-bottom:0.25rem; }
+.modal .sub{ font-size:13px;color:var(--muted);margin-bottom:1rem; }
+.modal-actions{ display:flex;gap:8px;justify-content:flex-end;margin-top:1rem; }
+.field{ margin-bottom:10px; }
+.field label{ display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px; }
+.field input,.field select,.field textarea{
+  width:100%;padding:9px 11px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--radius-sm);outline:none;
+}
+.field input:focus,.field select:focus{ border-color:var(--accent); }
+.btn-go{
+  background:var(--accent);color:#fff;border:none;
+  padding:9px 18px;border-radius:var(--radius-sm);font-weight:600;
+}
+.btn-go:hover{ opacity:0.88; }
+.btn-secondary{
+  background:var(--bg3);color:var(--text);border:1px solid var(--border);
+  padding:9px 18px;border-radius:var(--radius-sm);font-weight:600;
+}
+.icon-btn{
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text);transition:background 0.12s;
+}
+.icon-btn:hover{ background:var(--bg4); }
+

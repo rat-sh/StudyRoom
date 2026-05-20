@@ -8,56 +8,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/core/css/base.css"/>
+<link rel="stylesheet" href="/core/css/app-shell.css"/>
 <link rel="stylesheet" href="/core/css/dashboard.css"/>
 </head>
 <body>
 <div class="dash-layout" id="dash-layout">
 
-  <!-- ══ COLLAPSIBLE SIDEBAR ══ -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo" onclick="goHome()" title="Go to dashboard" style="cursor:pointer">
-      <div class="sidebar-logo-icon"><i data-lucide="book-open" style="width:18px;height:18px"></i></div>
-      <span class="sidebar-logo-text">StudyRoom</span>
-    </div>
-    <button class="sidebar-collapse-btn" id="sidebar-toggle" onclick="toggleSidebarCollapse()" title="Collapse sidebar">
-      <i data-lucide="chevrons-left" id="sidebar-toggle-icon" style="width:16px;height:16px"></i>
-    </button>
-
-    <div class="nav-section-label sidebar-section-label">Main</div>
-    <div class="nav-item active" id="nav-home" onclick="setPanel('home',this)" title="Home">
-      <div class="nav-icon-wrap"><i data-lucide="home"></i></div><span class="nav-label">Home</span>
-    </div>
-    <div class="nav-item" id="nav-rooms" onclick="setPanel('rooms',this)" title="My Rooms">
-      <div class="nav-icon-wrap"><i data-lucide="door-open"></i></div><span class="nav-label">My Rooms</span>
-    </div>
-    <div class="nav-item" id="nav-schedule" onclick="setPanel('schedule',this)" title="Schedule">
-      <div class="nav-icon-wrap"><i data-lucide="calendar"></i></div><span class="nav-label">Schedule</span>
-    </div>
-    <div class="nav-item" id="nav-friends" onclick="setPanel('friends',this)" title="Buddies">
-      <div class="nav-icon-wrap"><i data-lucide="users"></i></div><span class="nav-label">Buddies</span>
-    </div>
-    <div class="nav-item" id="nav-lobby" onclick="window.location.href='/lobby'" title="Public Lobby">
-      <div class="nav-icon-wrap"><i data-lucide="globe"></i></div><span class="nav-label">Public Lobby</span>
-    </div>
-
-    <hr class="sidebar-sep"/>
-    <div class="nav-section-label sidebar-section-label">Account</div>
-    <div class="nav-item" id="nav-theme" onclick="toggleTheme()" title="Toggle Theme">
-      <div class="nav-icon-wrap"><i data-lucide="moon" id="theme-icon"></i></div><span class="nav-label">Toggle Theme</span>
-    </div>
-    <div class="nav-item" id="nav-settings" onclick="setPanel('settings',this)" title="Settings">
-      <div class="nav-icon-wrap"><i data-lucide="settings"></i></div><span class="nav-label">Settings</span>
-    </div>
-
-    <div class="sidebar-user" onclick="logout()" title="Sign out">
-      <div class="avatar" id="sb-avatar">?</div>
-      <div class="sidebar-user-info">
-        <strong id="sb-name">...</strong>
-        <span>● Online</span>
-      </div>
-      <span class="logout-hint">Sign out</span>
-    </div>
-  </aside>
+  <aside class="sidebar" id="app-sidebar"></aside>
 
   <!-- ══ MAIN CONTENT ══ -->
   <main class="main-content">
@@ -116,27 +73,161 @@
       </div>
     </div>
 
-    <!-- SCHEDULE PANEL -->
-    <div class="panel" id="panel-schedule">
-      <div class="schedule-header">
-        <div>
-          <div class="panel-title">Schedule</div>
-          <p class="panel-sub" style="margin-bottom:0">Plan and manage your study sessions</p>
+    <!-- GAMES PANEL -->
+    <div class="panel" id="panel-games">
+      <div class="panel-title">Games</div>
+      <p class="panel-sub">Take a quick break and recharge your mind</p>
+      
+      <div class="action-grid" style="margin-top: 24px;">
+        <div class="action-card" onclick="window.location.href='/chess'" style="border: 1px solid var(--accent); background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1) 0%, transparent 100%);">
+          <div class="card-icon-wrap" style="color: var(--accent);"><i data-lucide="swords" style="width:24px;height:24px"></i></div>
+          <h3>Chess</h3>
+          <p>Challenge your mind with a classic game of strategy.</p>
         </div>
-        <button class="btn-add" onclick="openScheduleModal()">＋ Add Session</button>
+        <div class="action-card" style="opacity: 0.6; cursor: not-allowed; border: 1px solid var(--border);">
+          <div class="card-icon-wrap"><i data-lucide="grid" style="width:24px;height:24px"></i></div>
+          <h3>Sudoku</h3>
+          <p>Coming soon. Numeric puzzle for focus.</p>
+        </div>
+        <div class="action-card" style="opacity: 0.6; cursor: not-allowed; border: 1px solid var(--border);">
+          <div class="card-icon-wrap"><i data-lucide="hash" style="width:24px;height:24px"></i></div>
+          <h3>Tic Tac Toe</h3>
+          <p>Coming soon. Quick multiplayer fun.</p>
+        </div>
       </div>
-      <div class="schedule-list" id="schedule-list"></div>
+    </div>
+
+    <!-- MEDIA HUB PANEL -->
+    <div class="panel" id="panel-media">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div class="panel-title">Media Hub</div>
+          <p class="panel-sub">All shared files, documents, and media across chats and rooms</p>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Storage Used</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:100px;height:6px;background:var(--bg3);border-radius:4px;overflow:hidden">
+              <div id="media-storage-bar" style="height:100%;width:0%;background:var(--accent);transition:width 0.3s"></div>
+            </div>
+            <span id="media-storage-text" style="font-size:12px;font-weight:700;color:var(--text)">0 MB</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Media Toolbar -->
+      <div class="media-toolbar" style="display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;align-items:center;background:var(--bg2);padding:12px;border-radius:12px;border:1px solid var(--border)">
+        <div style="flex:1;min-width:200px;position:relative">
+          <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)"></i>
+          <input type="text" id="media-search" placeholder="Search filenames..." style="width:100%;padding:10px 10px 10px 36px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;outline:none" oninput="debounceMediaSearch()">
+        </div>
+        
+        <div style="flex:1;min-width:140px;position:relative">
+          <i data-lucide="user" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)"></i>
+          <input type="text" id="media-uploader-filter" placeholder="Uploader name..." style="width:100%;padding:10px 10px 10px 36px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;outline:none" oninput="debounceMediaSearch()">
+        </div>
+
+        <select id="media-date-filter" onchange="loadMedia()" style="padding:10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;outline:none;min-width:120px">
+          <option value="">Any Date</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="week">Past Week</option>
+          <option value="month">Past Month</option>
+        </select>
+
+        <select id="media-room-filter" onchange="loadMedia()" style="padding:10px;border-radius:8px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;outline:none;min-width:140px">
+          <option value="">All Rooms/Chats</option>
+        </select>
+        
+        <button onclick="triggerMediaUpload()" style="padding:10px 16px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">
+          <i data-lucide="upload" style="width:14px;height:14px"></i> Upload
+        </button>
+        <button onclick="triggerFolderUpload()" title="Upload Folder" style="padding:10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">
+          <i data-lucide="folder-up" style="width:14px;height:14px"></i>
+        </button>
+        <input type="file" id="media-upload-input" multiple style="display:none" onchange="handleMediaUpload(event)">
+        <input type="file" id="media-folder-input" webkitdirectory directory multiple style="display:none" onchange="handleMediaUpload(event)">
+      </div>
+
+      <!-- Media Tabs -->
+      <div class="media-tabs">
+        <button class="media-tab active" onclick="setMediaTab('all', this)">All</button>
+        <button class="media-tab" onclick="setMediaTab('recent', this)">Recent</button>
+        <button class="media-tab" onclick="setMediaTab('largest', this)">Largest</button>
+        <button class="media-tab" onclick="setMediaTab('images', this)">Images</button>
+        <button class="media-tab" onclick="setMediaTab('videos', this)">Videos</button>
+        <button class="media-tab" onclick="setMediaTab('files', this)">Files</button>
+        <button class="media-tab" onclick="setMediaTab('audio', this)">Audio</button>
+        <button class="media-tab" onclick="setMediaTab('links', this)">Links</button>
+        <button class="media-tab" onclick="setMediaTab('chat', this)">Shared in Chat</button>
+        <button class="media-tab" onclick="setMediaTab('room', this)">Shared in Room</button>
+        <button class="media-tab" onclick="setMediaTab('starred', this)"><i data-lucide="star" style="width:12px;height:12px;margin-right:4px"></i>Starred</button>
+      </div>
+
+      <!-- Drag & Drop Zone overlay -->
+      <div id="media-dropzone" style="position:relative;min-height:300px">
+        <!-- Overlay when dragging -->
+        <div id="media-drag-overlay" style="display:none;position:absolute;inset:0;background:rgba(99,102,241,0.1);border:2px dashed var(--accent);border-radius:12px;z-index:10;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+          <i data-lucide="upload-cloud" style="width:48px;height:48px;color:var(--accent)"></i>
+          <span style="font-weight:700;color:var(--accent);font-size:16px">Drop files to upload</span>
+        </div>
+        
+        <!-- Media Grid -->
+        <div id="media-grid" class="media-list">
+          <!-- Items injected here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="media-empty" style="display:none;padding:60px 20px;text-align:center;color:var(--muted)">
+          <i data-lucide="folder-open" style="width:48px;height:48px;opacity:0.5;margin-bottom:16px;display:inline-block"></i>
+          <h3 style="margin:0 0 8px;font-size:16px;color:var(--text)">No media found</h3>
+          <p style="margin:0;font-size:13px">Upload files or check back when items are shared.</p>
+        </div>
+      </div>
     </div>
 
     <!-- FRIENDS / BUDDIES PANEL -->
     <div class="panel" id="panel-friends">
       <div class="panel-title">Buddies</div>
-      <p class="panel-sub">Connect with study partners and share tasks</p>
-      <div class="friends-search-row">
+      <p class="panel-sub">Connect with study partners and track their activity</p>
+
+      <!-- User Discovery Search -->
+      <div style="margin-bottom:20px">
+        <div class="section-label">Find People</div>
+        <div style="position:relative;margin-top:8px">
+          <input type="text" id="user-search-input"
+            class="friends-search"
+            placeholder="Search by name or email…"
+            oninput="searchUsers(this.value); searchFriends(this.value)"
+            autocomplete="off"/>
+        </div>
+        <div id="user-search-results" style="margin-top:6px;border:1px solid var(--border);border-radius:10px;overflow:hidden;display:none"></div>
+        <script>
+          // Show/hide results container based on input
+          document.getElementById('user-search-input')?.addEventListener('input', function() {
+            const r = document.getElementById('user-search-results');
+            if (r) r.style.display = this.value.length > 1 ? 'block' : 'none';
+          });
+        </script>
+      </div>
+
+      <!-- Friends Activity: buddies' visible rooms -->
+      <div style="margin-bottom:20px">
+        <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Friends Active Now</span>
+          <button onclick="loadFriendsActivity()" style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:12px">↺ Refresh</button>
+        </div>
+        <div id="friends-activity-list" style="margin-top:8px">
+          <div style="font-size:12px;color:var(--muted);padding:8px 0">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Existing buddy list -->
+      <div class="friends-search-row" style="display:none">
         <input type="text" id="friend-search-input" class="friends-search" placeholder="Search by name or email…" oninput="searchFriends(this.value)"/>
       </div>
       <div id="friend-search-results" class="friend-results-list hidden"></div>
-      <div class="section-label" style="margin-top:18px">My Buddies</div>
+      <div class="section-label" style="margin-top:4px">My Buddies</div>
       <div id="buddies-list" class="buddies-list">
         <div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>
       </div>
@@ -153,10 +244,7 @@
         <div class="field"><label>Display Name</label><input type="text" id="settings-name" readonly/></div>
         <div class="field"><label>Email</label><input type="email" id="settings-email" readonly/></div>
       </div>
-      <div class="settings-section">
-        <h3>Session</h3>
-        <button class="btn-go" style="max-width:200px;border-radius:var(--radius-sm)" onclick="logout()">Sign Out</button>
-      </div>
+      <p class="panel-sub" style="margin-top:8px;font-size:12px">Sign out from the menu at the bottom left of the sidebar.</p>
     </div>
   </main>
 
@@ -181,15 +269,16 @@
           <i data-lucide="settings" style="width:16px;height:16px"></i>
         </button>
       </div>
-      <div class="rp-buddies-row" id="rp-buddies-row">
+      <div class="rp-buddies-row buddies-dropdown-wrap" id="rp-buddies-row" onclick="openBuddiesFromProfile(event)" style="cursor:pointer" title="Buddies">
         <i data-lucide="users" style="width:13px;height:13px;color:var(--muted)"></i>
         <span id="rp-buddy-count" style="font-size:12px;font-weight:600">0</span>
-        <span style="font-size:12px;color:var(--muted)">Buddies</span>
+        <span style="font-size:12px;color:var(--muted)">Buddies ▾</span>
+        <div class="buddies-dropdown" id="buddies-dropdown" onclick="event.stopPropagation()"></div>
       </div>
     </div>
 
     <!-- Activity Chart -->
-    <div class="rp-card">
+    <div class="rp-card activity-card">
       <div class="rp-card-header">
         <span class="rp-card-title">Activity</span>
         <span class="rp-activity-total" id="rp-total-hours">0h</span>
@@ -218,17 +307,24 @@
 
 <!-- ══ MODALS ══ -->
 
-<!-- ADD TODO MODAL -->
+<!-- ADD TODO MODAL (v2 — multi-member) -->
 <div class="modal-overlay" id="modal-todo">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" style="max-width:420px">
     <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="check-square" style="width:18px;height:18px"></i> New Task</h2>
     <div class="field"><label>Task title</label><input type="text" id="todo-title-input" placeholder="e.g. Complete Ch. 4 Notes" maxlength="200"/></div>
+    <div class="field"><label>Description <span style="color:var(--muted);font-size:11px">(optional)</span></label>
+      <input type="text" id="todo-desc-input" placeholder="Add more context…" maxlength="300"/>
+    </div>
     <div class="field">
-      <label>Share with a buddy (optional)</label>
-      <select id="todo-share-select">
-        <option value="">Personal (just me)</option>
-        <!-- populated by JS -->
-      </select>
+      <label>Collaborators <span style="color:var(--muted);font-size:11px">(unlimited)</span></label>
+      <!-- Chips of selected members -->
+      <div id="todo-member-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:28px;"></div>
+      <!-- Buddy search -->
+      <div style="position:relative">
+        <input type="text" id="todo-member-search" placeholder="Search buddies to add…" autocomplete="off"
+               style="width:100%;box-sizing:border-box;" oninput="filterTodoBuddies(this.value)"/>
+        <div id="todo-buddy-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);z-index:200;max-height:160px;overflow-y:auto;box-shadow:var(--shadow-md)"></div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-todo')">Cancel</button>
@@ -236,6 +332,22 @@
     </div>
   </div>
 </div>
+
+<!-- TODO PARTICIPANTS MODAL -->
+<div class="modal-overlay" id="modal-todo-participants">
+  <div class="modal" style="max-width:380px">
+    <h2 style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <i data-lucide="users" style="width:18px;height:18px"></i>
+      <span id="tp-title">Task Progress</span>
+    </h2>
+    <p class="sub" id="tp-subtitle" style="margin:0 0 16px">Who's done and who's pending</p>
+    <div id="tp-members-list" style="display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-secondary" onclick="closeModal('modal-todo-participants')">Close</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- CREATE ROOM MODAL -->
 <div class="modal-overlay" id="modal-create">
@@ -250,9 +362,32 @@
         <option>English</option><option>Computer Science</option><option>Economics</option>
       </select>
     </div>
-    <div class="toggle-row">
-      <label>Make room public (visible in lobby)</label>
-      <label class="toggle"><input type="checkbox" id="room-public"/><span class="toggle-slider"></span></label>
+    <div class="field">
+      <label>Room Visibility</label>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px" id="visibility-options">
+        <label class="visibility-opt" id="vopt-public" onclick="selectVisibility('public')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:2px solid var(--border);transition:all 0.15s">
+          <span style="font-size:18px">🌐</span>
+          <div>
+            <div style="font-weight:600;font-size:13px">Public</div>
+            <div style="font-size:11px;color:var(--muted)">Anyone can find & join. No PIN needed.</div>
+          </div>
+        </label>
+        <label class="visibility-opt selected" id="vopt-protected" onclick="selectVisibility('protected')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:2px solid var(--accent);background:var(--accent-faint);transition:all 0.15s">
+          <span style="font-size:18px">🔒</span>
+          <div>
+            <div style="font-weight:600;font-size:13px">Protected <span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:4px;margin-left:4px">Default</span></div>
+            <div style="font-size:11px;color:var(--muted)">Friends can see it. They need to request access or have the PIN.</div>
+          </div>
+        </label>
+        <label class="visibility-opt" id="vopt-private" onclick="selectVisibility('private')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:2px solid var(--border);transition:all 0.15s">
+          <span style="font-size:18px">🔐</span>
+          <div>
+            <div style="font-weight:600;font-size:13px">Private</div>
+            <div style="font-size:11px;color:var(--muted)">Completely hidden. Invite-only via link/code.</div>
+          </div>
+        </label>
+      </div>
+      <input type="hidden" id="room-visibility" value="protected"/>
     </div>
     <div id="code-section" class="hidden">
       <div class="token-box">
@@ -324,6 +459,46 @@
   </div>
 </div>
 
+<!-- PROTECTED ROOM: REQUEST ACCESS MODAL -->
+<div class="modal-overlay" id="modal-request-access">
+  <div class="modal" style="max-width:420px">
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="shield" style="width:20px;height:20px"></i> Request Access</h2>
+    <p class="sub">This is a <strong>Protected Room</strong>. The owner will be notified and can accept or reject your request.</p>
+    <div id="request-access-room-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:2px">Room</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text)" id="ra-room-name">---</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-top:3px" id="ra-room-code">------</div>
+    </div>
+    <div class="field">
+      <label>Optional message to owner</label>
+      <input type="text" id="ra-message" placeholder="e.g. Hey, can I join your study session?" maxlength="120"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-request-access')">Cancel</button>
+      <button class="btn-go" onclick="submitJoinRequest()">Send Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- JOIN REQUEST NOTIFICATION (for room owners) -->
+<div id="join-request-bar" class="top-notify-bar" style="display:none">
+  <i data-lucide="bell" style="width:16px;height:16px;flex-shrink:0"></i>
+  <span id="jrb-text">Someone wants to join your protected room.</span>
+  <div style="display:flex;gap:8px;margin-left:auto;flex-shrink:0">
+    <button id="jrb-accept" onclick="respondToJoinRequest('accepted')" style="background:#fff;color:var(--accent);border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:12px">Accept</button>
+    <button id="jrb-reject" onclick="respondToJoinRequest('rejected')" style="background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:12px">Reject</button>
+    <button onclick="document.getElementById('join-request-bar').style.display='none'" style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;line-height:1;padding:2px">×</button>
+  </div>
+</div>
+
+<!-- ROOM REQUEST DECISION NOTIFICATION -->
+<div id="request-decision-bar" class="top-notify-bar" style="display:none">
+  <i data-lucide="check-circle" style="width:16px;height:16px;flex-shrink:0"></i>
+  <span id="rdb-text">Your request was processed.</span>
+  <button id="rdb-join-btn" style="display:none;background:#fff;color:var(--accent);border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-size:12px;margin-left:auto" onclick="joinAfterApproval()">Join Now</button>
+  <button onclick="document.getElementById('request-decision-bar').style.display='none'" style="background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:2px">×</button>
+</div>
+
 <!-- SCHEDULE MODAL -->
 <div class="modal-overlay" id="modal-schedule">
   <div class="modal">
@@ -355,10 +530,15 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
+<script src="/core/js/event-bus.js"></script>
+<script src="/core/js/app-nav.js"></script>
+<script src="/core/js/buddies-ui.js"></script>
 <script src="/core/js/dashboard.js"></script>
+<script src="/core/js/media.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
-<script>lucide.createIcons();</script>
+<script>if (window.lucide) lucide.createIcons();</script>
 <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 </body>
 </html>

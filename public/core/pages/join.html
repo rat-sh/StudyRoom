@@ -20,18 +20,49 @@
       StudyRoom
     </div>
     <h1>Join a room</h1>
-    <p class="sub">Enter the room code and PIN to join</p>
+    <p class="sub">Enter the room code and PIN to join.</p>
     <div id="err" class="error-msg hidden"><i data-lucide="alert-circle" style="width:16px;height:16px"></i><span id="err-text" style="margin-left:4px"></span></div>
-    <div class="field"><label>Your name</label><input type="text" id="guestName" placeholder="Your name"/></div>
-    <div class="field"><label>Room code</label><input type="text" id="code" placeholder="ABC123" maxlength="6" style="font-family:var(--mono);font-size:18px;letter-spacing:0.12em;font-weight:700;text-transform:uppercase;text-align:center"/></div>
-    <div class="field"><label>Room PIN</label><input type="text" id="pin" placeholder="0000" maxlength="4" style="font-family:var(--mono);font-size:22px;letter-spacing:0.2em;font-weight:700;text-align:center" inputmode="numeric"/></div>
-    <button class="btn-primary" id="btn" onclick="doJoin()">Join Room →</button>
+
+    <!-- Identity picker — shown to logged-in users on public rooms -->
+    <div id="identity-picker" style="display:none;flex-direction:column;gap:12px;margin-bottom:16px">
+      <p style="font-size:13px;color:var(--muted);margin:0;text-align:center">How do you want to join?</p>
+
+      <!-- Account option -->
+      <div onclick="selectIdentity('account')" style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;border:2px solid var(--accent);background:rgba(99,102,241,0.08);cursor:pointer;transition:all 0.15s" onmouseover="this.style.background='rgba(99,102,241,0.15)'" onmouseout="this.style.background='rgba(99,102,241,0.08)'">
+        <div id="ip-account-avatar" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0">?</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:var(--text)" id="ip-account-name">Your Name</div>
+          <div style="font-size:11px;color:var(--muted)" id="ip-account-email">your@email.com</div>
+        </div>
+        <div style="background:var(--accent);color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;flex-shrink:0">Join as Me</div>
+      </div>
+
+      <!-- Anonymous option -->
+      <div onclick="selectIdentity('guest')" style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;transition:all 0.15s" onmouseover="this.style.background='var(--bg4,var(--bg3))'" onmouseout="this.style.background='var(--bg3)'">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--bg4,var(--bg));border:2px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">👤</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:var(--text)">Join Anonymously</div>
+          <div style="font-size:11px;color:var(--muted)">as <span id="ip-guest-name" style="font-weight:600">Guest_XXXX</span></div>
+        </div>
+        <div style="color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:12px;flex-shrink:0">Anonymous</div>
+      </div>
+    </div>
+
+    <!-- Main join form -->
+    <div id="join-main-form">
+      <div class="field"><label>Your name</label><input type="text" id="guestName" placeholder="Your name"/></div>
+      <div class="field"><label>Room code</label><input type="text" id="code" placeholder="ABC123" maxlength="6" style="font-family:var(--mono);font-size:18px;letter-spacing:0.12em;font-weight:700;text-transform:uppercase;text-align:center" oninput="if(this.value.length>=4)checkRoomVisibility(this.value.trim().toUpperCase())"/></div>
+      <div id="pin-field" class="field"><label>Room PIN</label><input type="text" id="pin" placeholder="0000" maxlength="4" style="font-family:var(--mono);font-size:22px;letter-spacing:0.2em;font-weight:700;text-align:center" inputmode="numeric"/></div>
+      <button class="btn-primary" id="btn" onclick="doJoin()">Join Room →</button>
+    </div>
+
     <div class="auth-divider"><span>or</span></div>
     <button class="btn-outline" onclick="window.location.href='/lobby'" style="margin-bottom:8px">
       <i data-lucide="globe" style="width:16px;height:16px"></i> Browse Public Rooms
     </button>
     <div class="auth-switch"><a href="/">← Back to login</a></div>
   </div>
+
 </div>
 <div class="toast" id="toast"></div>
 <script src="/core/js/api.js"></script>

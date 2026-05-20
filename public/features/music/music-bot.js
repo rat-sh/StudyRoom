@@ -191,6 +191,18 @@ window.MusicBot = (() => {
           showChipMessage('info', '📭 Nothing is playing right now. Use `/play <song>` to start.');
         }
         return true;
+      case 'flush':
+        socket.emit('music-flush', { roomCode });
+        showChipMessage('info', '🧹 The upcoming queue has been flushed (cleared).');
+        return true;
+      case 'mode':
+        if (args === 'host' || args === 'collab') {
+          socket.emit('music-mode-toggle', { roomCode, mode: args === 'host' ? 'host-only' : 'collaborative', isHost: true });
+          showChipMessage('info', `⚙️ Queue mode changed to: **${args === 'host' ? 'Host Only' : 'Collaborative'}**`);
+        } else {
+          showChipMessage('error', '⚠️ Usage: `/mode host` or `/mode collab`');
+        }
+        return true;
       default:
         return false;
     }
@@ -236,29 +248,46 @@ window.MusicBot = (() => {
 
   // ── SOCKET HANDLERS ─────────────────────────────────────────
   function onSync(state) {
+    // Latency compensation: approximate one-way network trip time
+    const latencySec = (Date.now() - state.serverTime) / 1000 || 0;
+    
+    // Correct the elapsed time by adding the latency delay
+    if (state.playing && state.elapsed !== undefined) {
+      state.elapsed += latencySec;
+    }
+    
     currentState = state;
     localElapsed = state.elapsed || 0;
 
     clearInterval(progressInterval);
     if (state.playing) {
       progressInterval = setInterval(tickProgress, 1000);
-      // If we have a track and the player is idle, load + seek
+      
       if (state.track && state.track.videoId) {
         const playerState = ytPlayer && playerReady ? ytPlayer.getPlayerState() : -1;
-        // -1=unstarted, 0=ended, 5=video cued
+        // If not playing, or out of sync by > 2 seconds (desync correction)
         if (playerState <= 0 || playerState === 5) {
-          playTrackNow(state.track, state.elapsed || 0);
+          playTrackNow(state.track, localElapsed);
+        } else if (ytPlayer && playerReady && playerState === YT.PlayerState.PLAYING) {
+          const currentYtTime = ytPlayer.getCurrentTime();
+          if (Math.abs(currentYtTime - localElapsed) > 2) {
+            console.log(`[MusicSync] Desync detected. Local:${currentYtTime}, Target:${localElapsed}. Correcting...`);
+            ytPlayer.seekTo(localElapsed, true);
+          }
         }
       }
     } else {
-      // Paused state
       if (ytPlayer && playerReady) {
         const ps = ytPlayer.getPlayerState();
-        if (ps === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+        if (ps === YT.PlayerState.PLAYING) {
+           ytPlayer.pauseVideo();
+           ytPlayer.seekTo(state.pausedOffset || 0, true);
+        }
       }
     }
 
     updateOpenProgressBar();
+    if (window.EventBus) window.EventBus.emit('MUSIC_PRESENCE_UPDATE', currentState);
   }
 
   function onNowPlaying({ track }) {
@@ -268,13 +297,11 @@ window.MusicBot = (() => {
     clearInterval(progressInterval);
     progressInterval = setInterval(tickProgress, 1000);
 
-    // Update the single toast to show what's now playing
     showToast(`▶ Playing: ${track.title}`, 3500);
 
-    // Start audio playback
     playTrackNow(track, 0);
-    // Render the Now Playing card in chat (rich UI, not a duplicate toast)
     renderNowPlayingCard(currentState, false);
+    if (window.EventBus) window.EventBus.emit('MUSIC_PRESENCE_UPDATE', currentState);
   }
 
   function onQueued({ track, queuePosition, addedBy }) {
@@ -287,16 +314,29 @@ window.MusicBot = (() => {
     clearInterval(progressInterval);
     hidePlayer();
     showChipMessage('info', '✅ Queue finished! Use `/play <song>` to add more tracks.');
+    if (window.EventBus) window.EventBus.emit('MUSIC_PRESENCE_UPDATE', currentState);
   }
 
   // ── PROGRESS TICK ───────────────────────────────────────────
   function tickProgress() {
     if (!currentState.playing) return;
+    
+    // Auto desync correction every tick based on real host-authoritative logic
+    // We assume the true elapsed time is strictly moving forward by 1s.
+    // We can also poll YT's current time to ensure it hasn't drifted or buffered
+    if (ytPlayer && playerReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+      const ytTime = ytPlayer.getCurrentTime();
+      if (Math.abs(ytTime - localElapsed) > 2) {
+        // YT buffered or fell behind, forcefully resync
+        ytPlayer.seekTo(localElapsed, true);
+      }
+    }
+
     localElapsed++;
     updateOpenProgressBar();
 
     if (currentState.track && currentState.track.duration > 0) {
-      if (localElapsed >= currentState.track.duration) {
+      if (localElapsed >= currentState.track.duration + 1) { // 1s buffer
         socket.emit('music-track-ended', { roomCode });
         clearInterval(progressInterval);
       }
@@ -315,12 +355,16 @@ window.MusicBot = (() => {
     }
   }
 
+  function getMessagesContainer() {
+    return document.getElementById('music-messages') || document.getElementById('chat-messages');
+  }
+
   // ── RENDER: NOW PLAYING CARD ─────────────────────────────────
   function renderNowPlayingCard(state, isNpCommand) {
     const track = state.track;
     if (!track) return;
 
-    const msgs = document.getElementById('chat-messages');
+    const msgs = getMessagesContainer();
     if (!msgs) return;
 
     // Remove old card
@@ -392,7 +436,7 @@ window.MusicBot = (() => {
 
   // ── RENDER: QUEUED CARD ──────────────────────────────────────
   function renderQueuedCard(track, position, addedBy) {
-    const msgs = document.getElementById('chat-messages');
+    const msgs = getMessagesContainer();
     if (!msgs) return;
 
     const card = document.createElement('div');
@@ -429,7 +473,7 @@ window.MusicBot = (() => {
 
   // ── RENDER: QUEUE LIST CARD ──────────────────────────────────
   function showQueueCard() {
-    const msgs = document.getElementById('chat-messages');
+    const msgs = getMessagesContainer();
     if (!msgs) return;
 
     if (!currentState.queue.length) {
@@ -437,13 +481,22 @@ window.MusicBot = (() => {
       return;
     }
 
-    const qItems = currentState.queue.slice(currentState.currentIndex).map((t, i) => `
-      <div class="chip-queue-item">
-        <span class="chip-queue-num">${i === 0 ? '▶' : '#' + (i + 1)}</span>
-        <span class="chip-queue-title">${escHtml(t.title)}</span>
-        <span class="chip-queue-dur">${fmtTime(t.duration)}</span>
-      </div>
-    `).join('');
+    let qItems = currentState.queue.map((t, i) => {
+      if (i < currentState.currentIndex) return ''; // Skip history
+      const isCurrent = i === currentState.currentIndex;
+      return `
+        <div class="chip-queue-item" data-index="${i}" ${!isCurrent ? 'draggable="true" ondragstart="MusicBot.onDragStart(event)" ondragover="MusicBot.onDragOver(event)" ondrop="MusicBot.onDrop(event, this)"' : ''} style="display:flex;align-items:center;padding:8px;border-bottom:1px solid var(--border);${!isCurrent ? 'cursor:grab' : ''}">
+          <span class="chip-queue-num" style="width:24px;font-weight:600;color:var(--text2)">${isCurrent ? '▶' : '#' + (i + 1 - currentState.currentIndex)}</span>
+          <img src="${t.thumbnail || ''}" style="width:32px;height:32px;border-radius:4px;margin-right:8px;object-fit:cover" />
+          <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <span class="chip-queue-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(t.title)}</span>
+            <span style="font-size:10px;color:var(--muted)">${escHtml(t.requestedBy || 'Unknown')}</span>
+          </div>
+          <span class="chip-queue-dur" style="margin:0 8px;font-size:12px;color:var(--text2)">${fmtTime(t.duration)}</span>
+          ${!isCurrent ? `<button onclick="MusicBot.ctrlRemove(${i})" style="background:none;border:none;cursor:pointer;color:#FF4757" title="Remove">✕</button>` : ''}
+        </div>
+      `;
+    }).join('');
 
     const card = document.createElement('div');
     card.className = 'chip-msg';
@@ -466,10 +519,29 @@ window.MusicBot = (() => {
     msgs.appendChild(card);
     msgs.scrollTop = msgs.scrollHeight;
   }
+  
+  // Drag and Drop reordering
+  function onDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.dataset.index);
+    e.target.style.opacity = '0.4';
+  }
+  function onDragOver(e) {
+    e.preventDefault();
+  }
+  function onDrop(e, targetEl) {
+    e.preventDefault();
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+    const toIndex = parseInt(targetEl.closest('.chip-queue-item').dataset.index);
+    document.querySelectorAll('.chip-queue-item').forEach(el => el.style.opacity = '1');
+    if (fromIndex !== toIndex && !isNaN(fromIndex) && !isNaN(toIndex)) {
+      socket.emit('music-reorder', { roomCode, fromIndex, toIndex });
+      setTimeout(showQueueCard, 300); // Re-render card shortly
+    }
+  }
 
   // ── RENDER: SIMPLE INFO/ERROR MESSAGE ───────────────────────
   function showChipMessage(type, text) {
-    const msgs = document.getElementById('chat-messages');
+    const msgs = getMessagesContainer();
     if (!msgs) return;
 
     const colors = { error: '#FF4757', info: '#5865F2', stopped: 'var(--hint)' };
@@ -508,7 +580,13 @@ window.MusicBot = (() => {
   }
 
   function ctrlSkip() {
-    socket.emit('music-skip', { roomCode });
+    const userId = window.API?.user()?.id || 'guest';
+    socket.emit('music-skip', { roomCode, userId, isHost: false }); // For now, simple vote
+  }
+
+  function ctrlRemove(index) {
+    socket.emit('music-remove', { roomCode, index });
+    showChipMessage('info', 'Track removed from queue.');
   }
 
   function ctrlStop() {
@@ -557,5 +635,5 @@ window.MusicBot = (() => {
   }
 
   // Public API
-  return { init, parseCommand, ctrlTogglePlay, ctrlSkip, ctrlStop, onVolumeSlider, showQueueCard, seekTo };
+  return { init, parseCommand, ctrlTogglePlay, ctrlSkip, ctrlStop, ctrlRemove, onVolumeSlider, showQueueCard, seekTo, onDragStart, onDragOver, onDrop };
 })();

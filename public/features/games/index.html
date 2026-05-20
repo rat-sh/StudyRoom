@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="/core/css/base.css">
+  <style>
+    body { background: var(--bg2); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden; }
+    .nav { display: flex; gap: 8px; padding: 8px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); justify-content: center; flex-shrink: 0; }
+    .nav button { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 500; font-size: 13px; transition: 0.2s; }
+    .nav button:hover { background: var(--bg3); }
+    .nav button.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .game-container { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; overflow: auto; padding: 16px; }
+    .hidden { display: none !important; }
+
+    /* Tic Tac Toe */
+    .ttt-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; background: var(--border); padding: 5px; border-radius: var(--radius-md); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .ttt-cell { width: 90px; height: 90px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; cursor: pointer; transition: background 0.2s; border-radius: 4px; color: var(--text); }
+    .ttt-cell:hover { background: var(--bg3); }
+    .ttt-cell.X { color: var(--accent); }
+    .ttt-cell.O { color: var(--danger); }
+
+    /* Sudoku Race */
+    .sudoku-race-header { display: flex; gap: 16px; width: 100%; max-width: 520px; margin-bottom: 12px; }
+    .sudoku-player-card { flex: 1; background: var(--bg); border: 2px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; }
+    .sudoku-player-card.me { border-color: var(--accent); }
+    .sudoku-player-card.opponent { border-color: var(--danger); }
+    .sudoku-player-card .p-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; color: var(--muted); }
+    .sudoku-player-card .p-progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .sudoku-player-card .p-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; background: var(--accent); width: 0%; }
+    .sudoku-player-card.opponent .p-progress-fill { background: var(--danger); }
+    .sudoku-player-card .p-stat { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .sudoku-timer { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--accent); text-align: center; margin-bottom: 8px; }
+    .sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); background: var(--text); border: 3px solid var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 4px; }
+    .sudoku-cell { width: 38px; height: 38px; background: var(--bg); text-align: center; font-size: 17px; border: none; outline: none; color: var(--text); cursor: pointer; }
+    .sudoku-cell.fixed { font-weight: 700; background: var(--bg2); color: var(--text); cursor: default; pointer-events: none; }
+    .sudoku-cell.user-filled { color: var(--accent); }
+    .sudoku-cell.err { color: var(--danger) !important; background: rgba(255,80,80,0.12); }
+    .sudoku-cell.opponent-filled { color: var(--muted); font-style: italic; pointer-events: none; background: rgba(255,255,255,0.03); }
+    .sudoku-cell.box-right { border-right: 2px solid var(--text) !important; }
+    .sudoku-cell.box-bottom { border-bottom: 2px solid var(--text) !important; }
+    .sudoku-cell:focus { background: var(--bg3); }
+    .sudoku-cell:not(.fixed):not(.opponent-filled):hover { background: var(--bg3); }
+    .sudoku-numpad { display: flex; gap: 6px; margin-top: 12px; }
+    .sudoku-numpad button { width: 36px; height: 36px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: var(--radius-sm); cursor: pointer; font-size: 15px; font-weight: 600; transition: 0.15s; }
+    .sudoku-numpad button:hover { background: var(--accent); color: white; border-color: var(--accent); }
+    .sudoku-numpad button.erase { font-size: 12px; width: 48px; }
+    .sudoku-status { font-size: 14px; font-weight: 600; color: var(--muted); margin: 8px 0; text-align: center; }
+    .sudoku-role-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .sudoku-role-badge.player { background: rgba(0,184,148,0.15); color: var(--accent); }
+    .sudoku-role-badge.spectator { background: var(--bg3); color: var(--muted); }
+
+    /* WIN overlay */
+    .game-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(6px); }
+    .game-overlay-card { background: var(--bg); border-radius: var(--radius-lg); padding: 32px 40px; text-align: center; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 340px; width: 90%; }
+    .game-overlay-card .win-emoji { font-size: 52px; margin-bottom: 8px; }
+    .game-overlay-card h2 { font-size: 24px; font-weight: 700; margin: 0 0 8px; }
+    .game-overlay-card p { font-size: 14px; color: var(--muted); margin: 0 0 20px; }
+    .overlay-btn { padding: 10px 24px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; margin: 4px; }
+    .overlay-btn.primary { background: var(--accent); color: white; }
+    .overlay-btn.primary:hover { opacity: 0.88; }
+    .overlay-btn.secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+
+    /* Dots and Boxes */
+    .dab-board { display: flex; flex-direction: column; position: relative; background: var(--bg); padding: 16px; border-radius: var(--radius-md); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .dab-row { display: flex; }
+    .dab-dot { width: 12px; height: 12px; background: var(--text); border-radius: 50%; z-index: 2; }
+    .dab-hline { height: 12px; width: 55px; margin: 0; background: var(--bg3); cursor: pointer; transition: 0.2s; border-radius: 6px; }
+    .dab-hline:hover { background: var(--border); }
+    .dab-hline.filled { background: var(--text); cursor: default; }
+    .dab-vline-row { display: flex; }
+    .dab-vline { width: 12px; height: 55px; background: var(--bg3); cursor: pointer; transition: 0.2s; border-radius: 6px; }
+    .dab-vline:hover { background: var(--border); }
+    .dab-vline.filled { background: var(--text); cursor: default; }
+    .dab-box { width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 22px; }
+    .dab-box.p1 { background: rgba(0,184,148,0.15); color: var(--accent); }
+    .dab-box.p2 { background: rgba(255,80,80,0.1); color: var(--danger); }
+
+    .status { margin-bottom: 16px; font-weight: bold; font-size: 18px; text-align: center; }
+    .scores { font-size: 15px; margin-bottom: 16px; font-weight: 500; }
+    .btn-reset { margin-top: 16px; background: var(--bg2); color: var(--text); border: 1px solid var(--border); padding: 9px 20px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; transition: 0.2s; font-size: 13px; }
+    .btn-reset:hover { background: var(--bg3); }
+
+    /* Rock Paper Scissors */
+    .rps-arena { display: flex; align-items: stretch; justify-content: center; gap: 24px; width: 100%; max-width: 520px; margin: 12px 0 20px; }
+    .rps-player-card { flex: 1; min-height: 140px; border-radius: var(--radius-md); border: 2px solid var(--border); padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+    .rps-player-card.you { border-color: var(--accent); background: rgba(0,184,148,0.08); }
+    .rps-player-card.opponent { border-color: var(--danger); background: rgba(255,80,80,0.06); }
+    .rps-card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .rps-card-move { font-size: 48px; line-height: 1; }
+    .rps-vs { font-size: 18px; font-weight: 800; color: var(--muted); align-self: center; }
+    .rps-choices { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .rps-result-text { font-size: 18px; font-weight: 700; margin-bottom: 12px; min-height: 28px; text-align: center; }
+    .rps-btn { font-size: 22px; padding: 10px 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg2); color: var(--text); cursor: pointer; transition: 0.2s; }
+    .rps-btn:hover { background: var(--bg3); transform: scale(1.05); }
+    .rps-btn.selected { background: var(--accent); color: white; border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <button class="nav-btn active" data-game="ttt">Tic Tac Toe</button>
+    <button class="nav-btn" data-game="dab">House Building</button>
+    <button class="nav-btn" data-game="sudoku">⚡ Sudoku Race</button>
+    <button class="nav-btn" data-game="rps">Rock Paper Scissors</button>
+  </div>
+
+  <!-- Tic Tac Toe -->
+  <div class="game-container" id="game-ttt">
+    <div class="status" id="ttt-status">Tic Tac Toe</div>
+    <div class="ttt-board" id="ttt-board">
+      <div class="ttt-cell" onclick="makeMoveTTT(0)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(1)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(2)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(3)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(4)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(5)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(6)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(7)"></div>
+      <div class="ttt-cell" onclick="makeMoveTTT(8)"></div>
+    </div>
+    <button class="btn-reset" onclick="requestResetTTT()">Restart Game</button>
+  </div>
+
+  <!-- Dots and Boxes -->
+  <div class="game-container hidden" id="game-dab">
+    <div class="status" id="dab-status">House Building (Dots &amp; Boxes)</div>
+    <div class="scores">
+      <span style="color:var(--accent);font-weight:bold;">P1: <span id="dab-p1">0</span></span> &nbsp;&nbsp;|&nbsp;&nbsp;
+      <span style="color:var(--danger);font-weight:bold;">P2: <span id="dab-p2">0</span></span>
+    </div>
+    <div class="dab-board" id="dab-board"></div>
+    <button class="btn-reset" onclick="requestResetDAB()">Restart Game</button>
+  </div>
+
+  <!-- Sudoku Race (Multiplayer) -->
+  <div class="game-container hidden" id="game-sudoku">
+    <!-- Player header -->
+    <div class="sudoku-race-header">
+      <div class="sudoku-player-card me" id="sudoku-me-card">
+        <div class="p-label">You <span class="sudoku-role-badge player" id="sudoku-my-role">Player 1</span></div>
+        <div class="p-stat">
+          <span id="sudoku-my-progress-text">0%</span>
+          <span id="sudoku-my-mistakes" style="color:var(--danger);font-size:12px;">❌ 0</span>
+        </div>
+        <div class="p-progress-bar"><div class="p-progress-fill" id="sudoku-my-fill"></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+        <div class="sudoku-timer" id="sudoku-timer">00:00</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;">VS</div>
+      </div>
+      <div class="sudoku-player-card opponent" id="sudoku-opp-card">
+        <div class="p-label"><span class="sudoku-role-badge spectator" id="sudoku-opp-role">Waiting…</span></div>
+        <div class="p-stat">
+          <span id="sudoku-opp-progress-text">0%</span>
+          <span id="sudoku-opp-mistakes" style="color:var(--danger);font-size:12px;">❌ 0</span>
+        </div>
+        <div class="p-progress-bar"><div class="p-progress-fill" id="sudoku-opp-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="sudoku-status" id="sudoku-status">Press "New Race" to start a multiplayer puzzle</div>
+    <div class="sudoku-board" id="sudoku-board"></div>
+
+    <div class="sudoku-numpad">
+      <button onclick="sudokuNumInput(1)">1</button>
+      <button onclick="sudokuNumInput(2)">2</button>
+      <button onclick="sudokuNumInput(3)">3</button>
+      <button onclick="sudokuNumInput(4)">4</button>
+      <button onclick="sudokuNumInput(5)">5</button>
+      <button onclick="sudokuNumInput(6)">6</button>
+      <button onclick="sudokuNumInput(7)">7</button>
+      <button onclick="sudokuNumInput(8)">8</button>
+      <button onclick="sudokuNumInput(9)">9</button>
+      <button class="erase" onclick="sudokuNumInput(0)">⌫ Erase</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn-reset" onclick="requestSudokuRace()">⚡ New Race</button>
+    </div>
+  </div>
+
+  <!-- Rock Paper Scissors -->
+  <div class="game-container hidden" id="game-rps">
+    <div class="status" id="rps-status">Rock Paper Scissors</div>
+    <div class="rps-arena">
+      <div class="rps-player-card you" id="rps-card-you">
+        <div class="rps-card-label">You</div>
+        <div class="rps-card-move" id="rps-my-display">?</div>
+      </div>
+      <div class="rps-vs">VS</div>
+      <div class="rps-player-card opponent" id="rps-card-opp">
+        <div class="rps-card-label">Opponent</div>
+        <div class="rps-card-move" id="rps-opp-display">?</div>
+      </div>
+    </div>
+    <div class="scores" id="rps-scores">Choose your move</div>
+    <div class="rps-choices" id="rps-choices">
+      <button class="rps-btn" id="rps-btn-rock" onclick="makeMoveRPS('rock')">✊ Rock</button>
+      <button class="rps-btn" id="rps-btn-paper" onclick="makeMoveRPS('paper')">✋ Paper</button>
+      <button class="rps-btn" id="rps-btn-scissors" onclick="makeMoveRPS('scissors')">✌️ Scissors</button>
+    </div>
+    <div id="rps-result" class="rps-result-text"></div>
+    <button class="btn-reset hidden" id="rps-reset-btn" onclick="requestResetRPS()">Play Again</button>
+  </div>
+
+  <!-- WIN/LOSE overlay -->
+  <div class="game-overlay hidden" id="sudoku-overlay">
+    <div class="game-overlay-card">
+      <div class="win-emoji" id="overlay-emoji">🏆</div>
+      <h2 id="overlay-title">You Win!</h2>
+      <p id="overlay-subtitle">You completed the Sudoku first!</p>
+      <div>
+        <button class="overlay-btn primary" onclick="requestSudokuRace()">⚡ Rematch</button>
+        <button class="overlay-btn secondary" onclick="document.getElementById('sudoku-overlay').classList.add('hidden')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="games.js"></script>
+</body>
+</html>

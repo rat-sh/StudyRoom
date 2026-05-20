@@ -2,6 +2,9 @@ import whiteboardHandler from './features/whiteboard.js';
 import timerHandler from './features/timer.js';
 import reactionsHandler from './features/reactions.js';
 import musicHandler from './features/music.js';
+import gamesHandler from './features/games.js';
+import chatSocketHandler from './features/chat.js';
+import chessHandler from './features/chess.js';
 import { logActivity } from '../routes/activity.js';
 
 const rooms = new Map();
@@ -13,15 +16,31 @@ export function setupCoreHandlers(io) {
   timerHandler(io, rooms);
   reactionsHandler(io, rooms);
   musicHandler(io, rooms);
+  gamesHandler(io, rooms);
+  chatSocketHandler(io);
+  chessHandler(io);
 
   io.on('connection', (socket) => {
 
     socket.on('join-room', ({ roomCode, user }) => {
+      // Check if banned
+      if (rooms.has(roomCode)) {
+        const room = rooms.get(roomCode);
+        if (room.banned && (room.banned.has(user?.id) || room.banned.has(socket.handshake.address))) {
+          socket.emit('you-were-kicked', { reason: 'banned' });
+          return;
+        }
+      }
+
       socket.join(roomCode);
-      if (!rooms.has(roomCode)) rooms.set(roomCode, { users: new Map() });
+      // ── Personal room so server can target this user directly ──
+      if (user?.id) socket.join(`user:${user.id}`);
+
+      if (!rooms.has(roomCode)) rooms.set(roomCode, { users: new Map(), ownerSocketId: socket.id });
       rooms.get(roomCode).users.set(socket.id, { name: user.name, id: user.id || null, guest: user.guest || false });
       socket.data = { roomCode, user };
       joinTime.set(socket.id, Date.now());
+
 
       socket.to(roomCode).emit('user-joined', { socketId: socket.id, user });
 
@@ -31,6 +50,19 @@ export function setupCoreHandlers(io) {
       });
       socket.emit('room-peers', peers);
       io.to(roomCode).emit('room-count', rooms.get(roomCode).users.size);
+    });
+
+    // ── Dashboard personal room join (users not in a room) ────────
+    socket.on('join-user-room', ({ userId }) => {
+      if (userId) socket.join(`user:${userId}`);
+    });
+
+    // ── Todo room subscription (for live progress updates) ────────
+    socket.on('todo-subscribe', ({ todoId }) => {
+      socket.join(`todo:${todoId}`);
+    });
+    socket.on('todo-unsubscribe', ({ todoId }) => {
+      socket.leave(`todo:${todoId}`);
     });
 
     socket.on('offer', ({ to, offer, renegotiate }) =>
@@ -65,6 +97,82 @@ export function setupCoreHandlers(io) {
     });
     socket.on('screen-share-stopped', ({ roomCode }) => {
       socket.to(roomCode).emit('peer-screen-share-stopped', { socketId: socket.id });
+    });
+
+    // ── Moderation (owner only) ────────────────────────────────────
+    socket.on('mod-kick', ({ roomCode, targetSocketId }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (room.ownerSocketId && room.ownerSocketId !== socket.id) return;
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      if (!targetSocket) return;
+      targetSocket.emit('you-were-kicked');
+      targetSocket.leave(roomCode);
+      room.users.delete(targetSocketId);
+      io.to(roomCode).emit('user-left', { socketId: targetSocketId });
+      io.to(roomCode).emit('room-count', room.users.size);
+    });
+
+    socket.on('mod-timeout', ({ roomCode, targetSocketId }) => {
+      const room = rooms.get(roomCode);
+      if (!room) return;
+      if (room.ownerSocketId && room.ownerSocketId !== socket.id) return;
+      
+      // Add to banned set
+      if (!room.banned) room.banned = new Set();
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
+      if (targetSocket) {
+        if (targetSocket.data?.user?.id) room.banned.add(targetSocket.data.user.id);
+        room.banned.add(targetSocket.handshake.address); // IP fallback
+        targetSocket.emit('you-were-kicked', { reason: 'timeout' });
+        targetSocket.leave(roomCode);
+      }
+      room.users.delete(targetSocketId);
+      io.to(roomCode).emit('user-left', { socketId: targetSocketId });
+      io.to(roomCode).emit('room-count', room.users.size);
+    });
+
+    socket.on('mod-mute', ({ roomCode, targetSocketId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.ownerSocketId && room.ownerSocketId !== socket.id)) return;
+      io.sockets.sockets.get(targetSocketId)?.emit('you-were-muted');
+    });
+
+    socket.on('mod-stop-share', ({ roomCode, targetSocketId }) => {
+      const room = rooms.get(roomCode);
+      if (!room || (room.ownerSocketId && room.ownerSocketId !== socket.id)) return;
+      io.sockets.sockets.get(targetSocketId)?.emit('you-were-unshared');
+    });
+
+    // ── Protected Room: request to join ────────────────────────────────────
+    socket.on('room-join-request', ({ roomCode, requesterName, requesterId, message }) => {
+      // Forward to the room owner's personal socket room
+      // The owner's socket joins `user:<ownerId>` on dashboard load
+      // We broadcast to the full room so the owner (who is in the room) sees it
+      socket.to(roomCode).emit('room-join-request-incoming', {
+        roomCode,
+        requesterId,
+        requesterName,
+        message: message || '',
+        requestedAt: new Date().toISOString(),
+      });
+      // Also notify via personal user room if owner is on dashboard
+      if (socket.data?.roomOwnerUserId) {
+        socket.to(`user:${socket.data.roomOwnerUserId}`).emit('room-join-request-incoming', {
+          roomCode, requesterId, requesterName, message: message || '',
+          requestedAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    // ── Protected Room: owner responds ─────────────────────────────────────
+    socket.on('room-request-respond', ({ requesterId, roomCode, decision, pin }) => {
+      // decision: 'accepted' | 'rejected'
+      socket.to(`user:${requesterId}`).emit('room-request-decision', {
+        roomCode,
+        decision,
+        pin: decision === 'accepted' ? pin : null,
+      });
     });
 
     socket.on('disconnect', async () => {
