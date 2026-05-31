@@ -42,10 +42,10 @@
           <h3>Public Lobby</h3>
           <p>Browse and join live public study rooms by topic</p>
         </div>
-        <div class="action-card via-link" onclick="openJoinLink()">
-          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f91d/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
-          <h3>Join via Link</h3>
-          <p>Paste an invite link to enter a room directly</p>
+        <div class="action-card via-link" onclick="openFocusSetup()" style="background:linear-gradient(135deg, rgba(236,72,153,0.85), rgba(190,24,93,0.95))">
+          <div class="card-icon-wrap"><lottie-player src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f3af/lottie.json" background="transparent" speed="1" style="width: 24px; height: 24px;" loop autoplay></lottie-player></div>
+          <h3>Pure Focus Mode</h3>
+          <p>Read PDFs distraction-free with a Pomodoro timer</p>
         </div>
       </div>
       <div class="home-bottom-grid">
@@ -425,17 +425,26 @@
   </div>
 </div>
 
-<!-- JOIN VIA LINK MODAL -->
-<div class="modal-overlay" id="modal-link">
+<!-- SETUP FOCUS MODE MODAL -->
+<div class="modal-overlay" id="modal-focus-setup">
   <div class="modal">
-    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="link" style="width:20px;height:20px"></i> Join via Link</h2>
-    <p class="sub">Paste the invite link you received</p>
-    <div id="link-err" class="error-msg-sm hidden"></div>
-    <div class="field"><label>Invite Link</label><input type="text" id="link-input" placeholder="http://…/join/ABC123"/></div>
-    <div class="field"><label>Room PIN</label><input type="text" id="link-pin" placeholder="0000" maxlength="4" inputmode="numeric" style="font-family:var(--mono);font-size:20px;letter-spacing:0.15em;text-align:center"/></div>
+    <h2 style="display:flex;align-items:center;gap:8px"><i data-lucide="target" style="width:20px;height:20px"></i> Pure Focus Mode</h2>
+    <p class="sub">Set up your distraction-free reading session</p>
+    <div id="focus-err" class="error-msg-sm hidden"></div>
+    <div class="field"><label>Subject / Topic</label><input type="text" id="focus-subject" placeholder="e.g. Biology Chapter 4" maxlength="60"/></div>
+    <div class="field"><label>Reading Material (PDF)</label><input type="file" id="focus-file" accept="application/pdf" style="padding: 6px;"/></div>
+    <div class="field">
+      <label>Timer Duration</label>
+      <select id="focus-duration">
+        <option value="15">15 min — Quick Read</option>
+        <option value="25" selected>25 min — Pomodoro</option>
+        <option value="50">50 min — Deep Dive</option>
+        <option value="90">90 min — Flow State</option>
+      </select>
+    </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('modal-link')">Cancel</button>
-      <button class="btn-go" onclick="doJoinLink()">Join →</button>
+      <button class="btn-secondary" onclick="closeModal('modal-focus-setup')">Cancel</button>
+      <button class="btn-go" onclick="startFocusMode()">Start Focus →</button>
     </div>
   </div>
 </div>
@@ -530,6 +539,22 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- FOCUS MODE OVERLAY -->
+<div id="focus-overlay" class="focus-overlay">
+  <!-- Top Control Bar -->
+  <div class="focus-overlay-topbar">
+    <div id="focus-overlay-subject" class="focus-overlay-subject">Subject</div>
+    <div id="focus-overlay-timer" class="focus-overlay-timer">25:00</div>
+    <button onclick="endFocusMode()" class="focus-overlay-close-btn">
+      <i data-lucide="x-square" style="width:16px; height:16px;"></i> End Focus Mode
+    </button>
+  </div>
+  <!-- PDF Viewer -->
+  <div class="focus-overlay-content">
+    <iframe id="focus-pdf-frame" class="focus-overlay-iframe" src=""></iframe>
+  </div>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/core/js/api.js"></script>
 <script src="/core/js/event-bus.js"></script>

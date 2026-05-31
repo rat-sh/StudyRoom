@@ -771,11 +771,92 @@ function openJoin() {
   setTimeout(() => document.getElementById('join-code').focus(), 200);
 }
 
-function openJoinLink() {
-  document.getElementById('link-input').value = '';
-  document.getElementById('link-pin').value = '';
-  document.getElementById('link-err').classList.add('hidden');
-  openModal('modal-link');
+function openFocusSetup() {
+  document.getElementById('focus-subject').value = '';
+  document.getElementById('focus-file').value = '';
+  document.getElementById('focus-err').classList.add('hidden');
+  openModal('modal-focus-setup');
+  setTimeout(() => document.getElementById('focus-subject').focus(), 200);
+}
+
+// ── PURE FOCUS MODE LOGIC ──
+let focusInterval = null;
+let focusBlobUrl = null;
+
+function startFocusMode() {
+  const subject = document.getElementById('focus-subject').value.trim() || 'Focus Session';
+  const fileInput = document.getElementById('focus-file');
+  const duration = parseInt(document.getElementById('focus-duration').value, 10);
+  const err = document.getElementById('focus-err');
+  
+  if (!fileInput.files || fileInput.files.length === 0) {
+    err.textContent = 'Please select a PDF file to read.';
+    err.classList.remove('hidden');
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  if (file.type !== 'application/pdf') {
+    err.textContent = 'Only PDF files are supported for focus mode.';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  // Create local blob URL for the PDF
+  focusBlobUrl = URL.createObjectURL(file);
+  
+  // Setup overlay
+  document.getElementById('focus-overlay-subject').textContent = subject;
+  document.getElementById('focus-pdf-frame').src = focusBlobUrl;
+  
+  closeModal('modal-focus-setup');
+  document.getElementById('focus-overlay').style.display = 'flex';
+  
+  // Start Timer
+  let timeRemaining = duration * 60;
+  updateFocusTimerDisplay(timeRemaining);
+  
+  focusInterval = setInterval(() => {
+    timeRemaining--;
+    updateFocusTimerDisplay(timeRemaining);
+    if (timeRemaining <= 0) {
+      clearInterval(focusInterval);
+      focusInterval = null;
+      playFocusEndSound();
+    }
+  }, 1000);
+}
+
+function updateFocusTimerDisplay(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  document.getElementById('focus-overlay-timer').textContent = `${m}:${s}`;
+}
+
+function endFocusMode() {
+  if (focusInterval) {
+    clearInterval(focusInterval);
+    focusInterval = null;
+  }
+  if (focusBlobUrl) {
+    URL.revokeObjectURL(focusBlobUrl);
+    focusBlobUrl = null;
+  }
+  document.getElementById('focus-pdf-frame').src = '';
+  document.getElementById('focus-overlay').style.display = 'none';
+  showToast('Focus session ended. Great job!');
+}
+
+function playFocusEndSound() {
+  try {
+    const audio = new Audio('/core/assets/bell.mp3'); // or generic beep if not exist
+    audio.play().catch(e => {
+      // Audio might fail if user didn't interact recently, fallback to visual:
+      showToast('Focus session complete!');
+    });
+  } catch (e) {
+    showToast('Focus session complete!');
+  }
 }
 
 // ── JOIN RESOLVER: handles public / protected / private logic ──
@@ -834,17 +915,7 @@ async function doJoinFromDash() {
   if (ok) window.location.href = '/room/' + code;
 }
 
-async function doJoinLink() {
-  const link = document.getElementById('link-input').value.trim();
-  const pin = document.getElementById('link-pin').value.trim();
-  const err = document.getElementById('link-err');
-  err.classList.add('hidden');
-  const match = link.match(/\/join\/([A-Z0-9]{4,8})/i) || link.match(/\/room\/([A-Z0-9]{4,8})/i);
-  if (!match) { err.textContent = 'Invalid invite link'; err.classList.remove('hidden'); return; }
-  const code = match[1].toUpperCase();
-  const ok = await _resolveRoomJoin(code, pin, err);
-  if (ok) window.location.href = '/room/' + code;
-}
+// removed doJoinLink
 
 // ── COPY HELPERS ────────────────────────────────────────────────
 function copyCode() {
@@ -1095,7 +1166,7 @@ async function searchUsers(query) {
 }
 
 async function sendFriendRequestFromSearch(userId) {
-  const { ok, data } = await API.post(`/api/friends/request/${userId}`, {}, true);
+  const { ok, data } = await API.post('/api/friends/request', { targetUserId: userId }, true);
   if (ok) { showToast('✅ Buddy request sent!'); searchUsers(document.getElementById('user-search-input')?.value || ''); }
   else showToast('❌ ' + (data.error || 'Failed to send request'));
 }

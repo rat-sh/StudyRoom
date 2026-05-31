@@ -117,16 +117,58 @@ async function loadChats() {
   const { ok, data } = await API.get('/api/chat', true);
   if (!ok) return;
   chats = data;
-  renderChatList(chats);
+  renderChatList(chats, _getBuddiesWithoutChat());
 }
 
-function renderChatList(list) {
+function renderChatList(list, buddyList = []) {
   const el = document.getElementById('chat-list');
-  if (!list.length) {
-    el.innerHTML = `<div class="chat-list-loading">No chats yet. Start one!</div>`;
+
+  if (!list.length && !buddyList.length) {
+    el.innerHTML = `<div class="chat-list-loading">
+      <div style="text-align:center;padding:24px 16px">
+        <div style="font-size:32px;margin-bottom:8px">💬</div>
+        <div style="font-weight:600;margin-bottom:4px">No buddies yet</div>
+        <div style="font-size:12px;color:var(--muted)">Go to <a href="/buddies" style="color:var(--accent)">Buddies</a> to add friends</div>
+      </div>
+    </div>`;
     return;
   }
-  el.innerHTML = list.map(c => chatItemHtml(c)).join('');
+
+  let html = '';
+
+  if (list.length > 0) {
+    if (buddyList.length > 0) {
+      html += `<div class="chat-section-label">Chats</div>`;
+    }
+    html += list.map(c => chatItemHtml(c)).join('');
+  }
+
+  if (buddyList.length > 0) {
+    html += `<div class="chat-section-label">Buddies</div>`;
+    html += buddyList.map(b => buddyItemHtml(b)).join('');
+  }
+
+  el.innerHTML = html;
+}
+
+function buddyItemHtml(b) {
+  const isOnlineUser = onlineUserIds.has(b.friend.id);
+  const status = userStatuses[b.friend.id];
+  const dotClass = status === 'in-room' ? 'in-room' : isOnlineUser ? 'online' : 'offline';
+  const initials = (b.friend.name || '?')[0].toUpperCase();
+
+  return `
+    <div class="chat-item" onclick="startDM('${b.friend.id}')">
+      <div class="chat-item-avatar">
+        ${b.friend.avatar_url ? `<img src="${b.friend.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : initials}
+        <span class="presence-dot ${dotClass}"></span>
+      </div>
+      <div class="chat-item-body">
+        <div class="chat-item-name">${escHtml(b.friend.name || 'Unknown')}</div>
+        <div class="chat-item-preview">Start a new chat</div>
+      </div>
+    </div>
+  `;
 }
 
 function chatItemHtml(c) {
@@ -421,7 +463,19 @@ function handleFileAttachment(input) {
 // ── New chat modal ─────────────────────────────────────────────────────────
 async function loadBuddies() {
   const { ok, data } = await API.get('/api/friends', true);
-  if (ok) buddies = (data || []).filter(b => b.status === 'accepted');
+  if (ok) {
+    buddies = (data || []).filter(b => b.status === 'accepted');
+    // Re-render chat list so buddies appear immediately in the sidebar
+    renderChatList(chats, _getBuddiesWithoutChat());
+  }
+}
+
+// Returns accepted buddies that don't already have an existing DM thread
+function _getBuddiesWithoutChat() {
+  const existingChatUserIds = new Set(
+    chats.filter(c => !c.isGroup && c.other_user).map(c => c.other_user.id)
+  );
+  return buddies.filter(b => !existingChatUserIds.has(b.friend.id));
 }
 
 function openNewChatModal() {
@@ -593,8 +647,23 @@ if (window.EventBus) {
 
 // ── Chat list search ───────────────────────────────────────────────────────
 function filterChats(q) {
-  const filtered = chats.filter(c => (c.name || '').toLowerCase().includes(q.toLowerCase()));
-  renderChatList(filtered);
+  const qLower = (q || '').toLowerCase().trim();
+
+  if (!qLower) {
+    // Empty query → restore normal view: all chats + buddies without a chat thread
+    renderChatList(chats, _getBuddiesWithoutChat());
+    return;
+  }
+
+  const filteredChats = chats.filter(c => (c.name || '').toLowerCase().includes(qLower));
+  const existingChatUserIds = new Set(filteredChats.filter(c => !c.isGroup && c.other_user).map(c => c.other_user.id));
+  const filteredBuddies = buddies.filter(b =>
+    b.status === 'accepted' &&
+    (b.friend.name || '').toLowerCase().includes(qLower) &&
+    !existingChatUserIds.has(b.friend.id)
+  );
+
+  renderChatList(filteredChats, filteredBuddies);
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
