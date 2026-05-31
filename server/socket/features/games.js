@@ -3,11 +3,21 @@ export default function gamesHandler(io, rooms) {
   // sudokuState[roomCode] = { players: Map<socketId, 'p1'|'p2'>, solution, puzzle, winner }
   const sudokuState = new Map();
 
+  // Per-room Chess state
+  const roomChessState = new Map();
+
   function getSudokuRoom(roomCode) {
     if (!sudokuState.has(roomCode)) {
       sudokuState.set(roomCode, { players: new Map(), winner: null });
     }
     return sudokuState.get(roomCode);
+  }
+
+  function getRoomChess(roomCode) {
+    if (!roomChessState.has(roomCode)) {
+      roomChessState.set(roomCode, { w: null, b: null, fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', turn: 'w', status: 'waiting' });
+    }
+    return roomChessState.get(roomCode);
   }
 
   io.on('connection', (socket) => {
@@ -94,6 +104,57 @@ export default function gamesHandler(io, rooms) {
           state.players.delete(socket.id);
         }
       });
+      roomChessState.forEach((state, roomCode) => {
+        let changed = false;
+        if (state.w?.socketId === socket.id) { state.w = null; changed = true; }
+        if (state.b?.socketId === socket.id) { state.b = null; changed = true; }
+        if (changed) {
+          if (!state.w && !state.b) {
+            state.status = 'waiting';
+            state.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            state.turn = 'w';
+          }
+          io.to(roomCode).emit('room-chess-state', state);
+        }
+      });
+    });
+
+    // ── In-Meeting Chess ───────────────────────────────────────────
+    socket.on('room-chess-join', ({ roomCode }) => {
+      const state = getRoomChess(roomCode);
+      socket.emit('room-chess-state', state);
+    });
+
+    socket.on('room-chess-slot', ({ roomCode, slot, name }) => {
+      const state = getRoomChess(roomCode);
+      if (state[slot]) return; // already taken
+      
+      // Remove from other slot if switching
+      if (slot === 'w' && state.b?.socketId === socket.id) state.b = null;
+      if (slot === 'b' && state.w?.socketId === socket.id) state.w = null;
+      
+      state[slot] = { socketId: socket.id, name };
+      
+      if (state.w && state.b && state.status === 'waiting') {
+        state.status = 'active';
+      }
+      
+      io.to(roomCode).emit('room-chess-state', state);
+    });
+
+    socket.on('room-chess-move', ({ roomCode, from, to, promotion, fen, turn }) => {
+      const state = getRoomChess(roomCode);
+      state.fen = fen;
+      state.turn = turn;
+      socket.to(roomCode).emit('room-chess-move', { from, to, promotion, fen, turn });
+    });
+
+    socket.on('room-chess-reset', ({ roomCode }) => {
+      const state = getRoomChess(roomCode);
+      state.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      state.turn = 'w';
+      state.status = (state.w && state.b) ? 'active' : 'waiting';
+      io.to(roomCode).emit('room-chess-state', state);
     });
 
   });

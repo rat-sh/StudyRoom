@@ -562,3 +562,179 @@ function resetRPSLocally() {
 }
 
 socket.on('rps-reset', () => resetRPSLocally());
+
+// ── ROOM CHESS (IN-MEETING) ────────────────────────────────────────────
+
+const pieceImages = {
+  'p': 'black_pawn', 'n': 'black_knight', 'b': 'black_bishop', 'r': 'black_rook', 'q': 'black_queen', 'k': 'black_king',
+  'P': 'white_pawn', 'N': 'white_knight', 'B': 'white_bishop', 'R': 'white_rook', 'Q': 'white_queen', 'K': 'white_king'
+};
+
+let chessGame = new Chess();
+let myChessRole = null; // 'w' or 'b' or null
+let chessSelectedSq = null;
+let chessValidMoves = [];
+
+function renderChessBoard() {
+  const boardEl = document.getElementById('chess-board');
+  if (!boardEl) return;
+  boardEl.innerHTML = '';
+  
+  const ranks = myChessRole === 'b' ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+  const files = myChessRole === 'b' ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+  
+  for (let r of ranks) {
+    for (let f of files) {
+      const sq = f + r;
+      const isLight = (files.indexOf(f) + ranks.indexOf(r)) % 2 !== 0;
+      const div = document.createElement('div');
+      div.className = `chess-sq ${isLight ? 'light' : 'dark'}`;
+      div.dataset.sq = sq;
+      
+      if (chessSelectedSq === sq) div.classList.add('selected');
+      if (chessValidMoves.includes(sq)) div.classList.add('highlight');
+      
+      const piece = chessGame.get(sq);
+      if (piece) {
+        const char = piece.color === 'w' ? piece.type.toUpperCase() : piece.type;
+        const imgName = pieceImages[char];
+        const pDiv = document.createElement('div');
+        pDiv.className = 'chess-piece';
+        pDiv.style.backgroundImage = `url('/core/assets/chess/images/imgs-80px/${imgName}.png')`;
+        div.appendChild(pDiv);
+      }
+      
+      div.addEventListener('click', () => handleChessClick(sq));
+      boardEl.appendChild(div);
+    }
+  }
+}
+
+function handleChessClick(sq) {
+  if (!myChessRole) return; // spectator
+  const turn = chessGame.turn();
+  if (turn !== myChessRole) return; // not my turn
+  
+  const piece = chessGame.get(sq);
+  
+  if (piece && piece.color === myChessRole) {
+    chessSelectedSq = sq;
+    const moves = chessGame.moves({ square: sq, verbose: true });
+    chessValidMoves = moves.map(m => m.to);
+    renderChessBoard();
+    return;
+  }
+  
+  if (chessSelectedSq && chessValidMoves.includes(sq)) {
+    const moves = chessGame.moves({ square: chessSelectedSq, verbose: true });
+    const move = moves.find(m => m.to === sq);
+    const promotion = move.flags.includes('p') ? 'q' : undefined;
+    
+    chessGame.move({ from: chessSelectedSq, to: sq, promotion });
+    chessSelectedSq = null;
+    chessValidMoves = [];
+    renderChessBoard();
+    updateChessStatus();
+    
+    socket.emit('room-chess-move', { 
+      roomCode, 
+      from: move.from, 
+      to: sq, 
+      promotion, 
+      fen: chessGame.fen(), 
+      turn: chessGame.turn() 
+    });
+  }
+}
+
+function updateChessStatus() {
+  const infoEl = document.getElementById('chess-game-info');
+  const indEl = document.getElementById('chess-turn-ind');
+  if (!infoEl || !indEl) return;
+  const turnColor = chessGame.turn() === 'w' ? 'White' : 'Black';
+  
+  indEl.className = 'chess-turn-indicator ' + chessGame.turn();
+  indEl.textContent = turnColor;
+  
+  if (chessGame.in_checkmate()) {
+    infoEl.textContent = `Checkmate! ${turnColor === 'White' ? 'Black' : 'White'} wins.`;
+  } else if (chessGame.in_draw()) {
+    infoEl.textContent = 'Draw!';
+  } else if (chessGame.in_check()) {
+    infoEl.textContent = `${turnColor} is in check!`;
+  } else {
+    infoEl.textContent = `${turnColor} to move`;
+  }
+}
+
+function joinChessSlot(slot) {
+  // Get name from parent window if iframe, fallback to guest
+  let name = 'Player';
+  try {
+    if (window.parent && window.parent.document.getElementById('self-name')) {
+      name = window.parent.document.getElementById('self-name').textContent || 'Player';
+    }
+  } catch (e) {}
+  if (name === 'You') name = 'Player'; // if not properly retrieved
+  socket.emit('room-chess-slot', { roomCode, slot, name });
+}
+
+window.joinChessSlot = joinChessSlot;
+
+function requestResetChess() {
+  socket.emit('room-chess-reset', { roomCode });
+}
+
+window.requestResetChess = requestResetChess;
+
+socket.on('room-chess-state', (state) => {
+  const wSlot = document.getElementById('chess-slot-w');
+  const bSlot = document.getElementById('chess-slot-b');
+  if (!wSlot || !bSlot) return;
+  
+  if (state.w) {
+    wSlot.className = 'chess-slot filled white';
+    wSlot.querySelector('.chess-slot-name').textContent = state.w.name;
+    if (state.w.socketId === socket.id) myChessRole = 'w';
+  } else {
+    wSlot.className = 'chess-slot';
+    wSlot.querySelector('.chess-slot-name').textContent = 'Empty — Click to Join';
+    if (myChessRole === 'w') myChessRole = null;
+  }
+  
+  if (state.b) {
+    bSlot.className = 'chess-slot filled black';
+    bSlot.querySelector('.chess-slot-name').textContent = state.b.name;
+    if (state.b.socketId === socket.id) myChessRole = 'b';
+  } else {
+    bSlot.className = 'chess-slot';
+    bSlot.querySelector('.chess-slot-name').textContent = 'Empty — Click to Join';
+    if (myChessRole === 'b') myChessRole = null;
+  }
+  
+  chessGame.load(state.fen);
+  renderChessBoard();
+  updateChessStatus();
+  
+  if (state.status === 'active') {
+    document.getElementById('chess-board-wrap').classList.remove('hidden');
+    document.getElementById('chess-status-text').textContent = 'Match Active';
+  } else {
+    document.getElementById('chess-board-wrap').classList.add('hidden');
+    document.getElementById('chess-status-text').textContent = 'Waiting for players...';
+  }
+});
+
+socket.on('room-chess-move', ({ fen }) => {
+  chessGame.load(fen);
+  renderChessBoard();
+  updateChessStatus();
+});
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.game === 'chess') {
+      socket.emit('room-chess-join', { roomCode });
+    }
+  });
+});

@@ -30,14 +30,14 @@
     .sudoku-player-card.opponent .p-progress-fill { background: var(--danger); }
     .sudoku-player-card .p-stat { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
     .sudoku-timer { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--accent); text-align: center; margin-bottom: 8px; }
-    .sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); background: var(--text); border: 3px solid var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 4px; }
-    .sudoku-cell { width: 38px; height: 38px; background: var(--bg); text-align: center; font-size: 17px; border: none; outline: none; color: var(--text); cursor: pointer; }
+    .sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); background: var(--text); border: 3px solid var(--text); gap: 1px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 4px; }
+    .sudoku-cell { width: 42px; height: 42px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 19px; border: none; outline: none; color: var(--text); cursor: pointer; }
     .sudoku-cell.fixed { font-weight: 700; background: var(--bg2); color: var(--text); cursor: default; pointer-events: none; }
     .sudoku-cell.user-filled { color: var(--accent); }
     .sudoku-cell.err { color: var(--danger) !important; background: rgba(255,80,80,0.12); }
     .sudoku-cell.opponent-filled { color: var(--muted); font-style: italic; pointer-events: none; background: rgba(255,255,255,0.03); }
-    .sudoku-cell.box-right { border-right: 2px solid var(--text) !important; }
-    .sudoku-cell.box-bottom { border-bottom: 2px solid var(--text) !important; }
+    .sudoku-cell.box-right { margin-right: 2px; }
+    .sudoku-cell.box-bottom { margin-bottom: 2px; }
     .sudoku-cell:focus { background: var(--bg3); }
     .sudoku-cell:not(.fixed):not(.opponent-filled):hover { background: var(--bg3); }
     .sudoku-numpad { display: flex; gap: 6px; margin-top: 12px; }
@@ -93,6 +93,29 @@
     .rps-btn { font-size: 22px; padding: 10px 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg2); color: var(--text); cursor: pointer; transition: 0.2s; }
     .rps-btn:hover { background: var(--bg3); transform: scale(1.05); }
     .rps-btn.selected { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* Chess */
+    .chess-lobby { display: flex; gap: 16px; margin-bottom: 16px; width: 100%; max-width: 480px; }
+    .chess-slot { flex: 1; border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 12px; text-align: center; cursor: pointer; transition: 0.2s; background: var(--bg); }
+    .chess-slot:hover { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+    .chess-slot.filled { border-style: solid; cursor: default; }
+    .chess-slot.filled.white { border-color: #f1f5f9; background: #ffffff; color: #0f172a; }
+    .chess-slot.filled.black { border-color: #1e293b; background: #0f172a; color: #f8fafc; }
+    .chess-slot-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; opacity: 0.7; }
+    .chess-slot-name { font-size: 15px; font-weight: 600; }
+    .chess-board-wrap { display: flex; flex-direction: column; align-items: center; }
+    .chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 360px; height: 360px; border: 4px solid var(--border); border-radius: 4px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .chess-sq { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative; }
+    .chess-sq.light { background: #f0d9b5; }
+    .chess-sq.dark { background: #b58863; }
+    .chess-sq.highlight { background: rgba(255, 255, 0, 0.4); }
+    .chess-sq.selected { background: rgba(20, 85, 30, 0.5); }
+    .chess-piece { width: 90%; height: 90%; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: grab; z-index: 2; transition: transform 0.1s; }
+    .chess-piece:active { cursor: grabbing; transform: scale(1.1); }
+    .chess-info { display: flex; justify-content: space-between; width: 100%; max-width: 360px; margin-top: 12px; font-weight: 600; font-size: 14px; }
+    .chess-turn-indicator { padding: 4px 12px; border-radius: 20px; font-size: 13px; }
+    .chess-turn-indicator.w { background: #ffffff; color: #000000; border: 1px solid #ccc; }
+    .chess-turn-indicator.b { background: #000000; color: #ffffff; }
   </style>
 </head>
 <body>
@@ -101,6 +124,7 @@
     <button class="nav-btn" data-game="dab">House Building</button>
     <button class="nav-btn" data-game="sudoku">⚡ Sudoku Race</button>
     <button class="nav-btn" data-game="rps">Rock Paper Scissors</button>
+    <button class="nav-btn" data-game="chess">♟ Chess</button>
   </div>
 
   <!-- Tic Tac Toe -->
@@ -201,6 +225,31 @@
     <button class="btn-reset hidden" id="rps-reset-btn" onclick="requestResetRPS()">Play Again</button>
   </div>
 
+  <!-- Chess -->
+  <div class="game-container hidden" id="game-chess">
+    <div class="status" id="chess-status-text">Room Chess Match</div>
+    
+    <div class="chess-lobby" id="chess-lobby">
+      <div class="chess-slot" id="chess-slot-w" onclick="joinChessSlot('w')">
+        <div class="chess-slot-label">White Pieces</div>
+        <div class="chess-slot-name">Empty — Click to Join</div>
+      </div>
+      <div class="chess-slot" id="chess-slot-b" onclick="joinChessSlot('b')">
+        <div class="chess-slot-label">Black Pieces</div>
+        <div class="chess-slot-name">Empty — Click to Join</div>
+      </div>
+    </div>
+
+    <div class="chess-board-wrap hidden" id="chess-board-wrap">
+      <div class="chess-info">
+        <span id="chess-game-info">White to move</span>
+        <span class="chess-turn-indicator w" id="chess-turn-ind">White</span>
+      </div>
+      <div class="chess-board" id="chess-board"></div>
+      <button class="btn-reset" onclick="requestResetChess()" style="margin-top:20px;">Resign / New Game</button>
+    </div>
+  </div>
+
   <!-- WIN/LOSE overlay -->
   <div class="game-overlay hidden" id="sudoku-overlay">
     <div class="game-overlay-card">
@@ -215,6 +264,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
   <script src="games.js"></script>
 </body>
 </html>
