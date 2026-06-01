@@ -1,0 +1,135 @@
+/* Global quick panel (right drawer) — all app-shell pages */
+
+:root {
+  --app-drawer-w: 280px;
+}
+
+.app-shell.has-app-drawer,
+.dash-layout.has-app-drawer {
+  transition: grid-template-columns 0.22s ease;
+}
+
+/* app-shell: drawer column collapses to 0 when closed */
+.app-shell.has-app-drawer {
+  grid-template-columns: var(--sb-w) 1fr 0px;
+}
+
+.app-shell.has-app-drawer.drawer-open {
+  grid-template-columns: var(--sb-w) 1fr var(--app-drawer-w);
+}
+
+/* Dashboard always shows right panel on desktop */
+.dash-layout.has-app-drawer {
+  grid-template-columns: var(--sb-w) 1fr var(--app-drawer-w);
+}
+
+.dash-layout.has-app-drawer.drawer-closed {
+  grid-template-columns: var(--sb-w) 1fr 0px;
+}
+
+.dash-layout.has-app-drawer.drawer-closed #right-panel,
+.dash-layout.has-app-drawer.drawer-closed .app-drawer {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-drawer,
+#right-panel.app-drawer-bound {
+  width: var(--app-drawer-w);
+  min-width: var(--app-drawer-w);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 1rem;
+  flex-shrink: 0;
+  transition: width 0.22s ease, opacity 0.2s ease, padding 0.22s ease;
+}
+
+.app-shell:not(.drawer-open) .app-drawer {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Floating toggle when drawer closed (optional affordance) */
+.app-drawer-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 900;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.app-drawer-fab:hover {
+  transform: scale(1.05);
+}
+
+.app-shell.has-app-drawer:not(.drawer-open) .app-drawer-fab,
+.dash-layout.has-app-drawer.drawer-closed .app-drawer-fab {
+  display: flex;
+}
+
+.app-shell.drawer-open .app-drawer-fab,
+.dash-layout:not(.drawer-closed) .app-drawer-fab {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  :root {
+    --app-drawer-w: min(100vw, 300px);
+  }
+
+  .app-shell.has-app-drawer.drawer-open {
+    grid-template-columns: 58px 1fr var(--app-drawer-w);
+  }
+
+  .dash-layout.has-app-drawer.drawer-closed {
+    grid-template-columns: 58px 1fr 0px;
+  }
+}
+
+@media (max-width: 500px) {
+  .app-shell.has-app-drawer.drawer-open .app-drawer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 800;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+  }
+
+  .app-drawer-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 799;
+  }
+
+  .app-shell.drawer-open .app-drawer-backdrop {
+    display: block;
+  }
+}

@@ -143,6 +143,12 @@ function initAppSidebar(active) {
     </div>
     ${navItem(active, 'settings', { title: 'Settings', label: 'Settings', icon: '<i data-lucide="settings"></i>', panel: 'settings' })}
 
+    <hr class="sidebar-sep"/>
+    <div class="nav-item" id="nav-drawer" onclick="toggleAppDrawer()" title="Quick panel — profile, buddies, todos">
+      <div class="nav-icon-wrap"><i data-lucide="panel-right"></i></div>
+      <span class="nav-label">Quick Panel</span>
+    </div>
+
     <div class="sidebar-user-wrap" id="sidebar-user-wrap">
       <div class="sidebar-user-btn" id="sidebar-user-btn" type="button">
         <div class="user-av" id="sb-avatar">?</div>
@@ -168,6 +174,8 @@ function initAppSidebar(active) {
     window.addEventListener('resize', applySidebarLayout);
   }
   if (window.lucide) lucide.createIcons();
+
+  if (typeof initAppDrawer === 'function') initAppDrawer();
 
   const storedTheme = localStorage.getItem('sr_theme') || 'light';
   const themeIcon = document.getElementById('theme-icon');

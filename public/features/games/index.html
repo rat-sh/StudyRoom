@@ -4,17 +4,59 @@
   <meta charset="UTF-8">
   <link rel="stylesheet" href="/core/css/base.css">
   <style>
-    body { background: var(--bg2); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden; }
-    .nav { display: flex; gap: 8px; padding: 8px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); justify-content: center; flex-shrink: 0; }
-    .nav button { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 500; font-size: 13px; transition: 0.2s; }
-    .nav button:hover { background: var(--bg3); }
-    .nav button.active { background: var(--accent); color: white; border-color: var(--accent); }
-    .game-container { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; overflow: auto; padding: 16px; }
+    body { background: var(--bg2); color: var(--text); font-family: 'Inter', sans-serif; display: flex; flex-direction: column; height: 100vh; height: 100dvh; margin: 0; overflow: hidden; }
     .hidden { display: none !important; }
 
+    .game-invite-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: rgba(108,99,255,0.15); border-bottom: 1px solid var(--accent); font-size: 13px; flex-shrink: 0; flex-wrap: wrap; }
+    .game-invite-bar.hidden { display: none; }
+    .game-invite-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .gi-accept, .gi-decline { padding: 8px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 12px; min-height: 36px; }
+    .gi-accept { background: var(--accent); color: #fff; }
+    .gi-decline { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+
+    .game-lobby { padding: 8px 12px; background: var(--bg3); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); text-align: center; flex-shrink: 0; line-height: 1.4; }
+
+    .game-action-bar {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .btn-invite {
+      padding: 8px 14px; border-radius: 8px; border: none; background: var(--accent); color: #fff;
+      font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; min-height: 36px;
+    }
+    .btn-invite:active { opacity: 0.9; }
+    .game-role-hint { font-size: 11px; color: var(--muted); flex: 1; min-width: 120px; line-height: 1.35; }
+
+    .nav {
+      display: flex; gap: 6px; padding: 8px 10px; background: var(--bg3); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity; scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+    .nav button {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 12px;
+      transition: 0.2s; flex-shrink: 0; scroll-snap-align: start; white-space: nowrap; min-height: 36px;
+    }
+    .nav button:hover { background: var(--bg3); }
+    .nav button.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    .game-container {
+      flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column;
+      overflow: auto; padding: 12px; min-height: 0; width: 100%; box-sizing: border-box;
+    }
+
     /* Tic Tac Toe */
-    .ttt-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; background: var(--border); padding: 5px; border-radius: var(--radius-md); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    .ttt-cell { width: 90px; height: 90px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; cursor: pointer; transition: background 0.2s; border-radius: 4px; color: var(--text); }
+    .ttt-board {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; background: var(--border);
+      padding: 5px; border-radius: var(--radius-md); box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      width: min(100%, 280px); aspect-ratio: 1;
+    }
+    .ttt-cell {
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: clamp(28px, 10vw, 40px); font-weight: bold; cursor: pointer; transition: background 0.2s;
+      border-radius: 4px; color: var(--text); aspect-ratio: 1; min-height: 48px;
+    }
     .ttt-cell:hover { background: var(--bg3); }
     .ttt-cell.X { color: var(--accent); }
     .ttt-cell.O { color: var(--danger); }
@@ -31,7 +73,8 @@
     .sudoku-player-card .p-stat { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
     .sudoku-timer { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--accent); text-align: center; margin-bottom: 8px; }
     .sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); background: var(--text); border: 3px solid var(--text); gap: 1px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border-radius: 4px; }
-    .sudoku-cell { width: 42px; height: 42px; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 19px; border: none; outline: none; color: var(--text); cursor: pointer; }
+    .sudoku-board-wrap { width: 100%; max-width: 360px; overflow-x: auto; }
+    .sudoku-cell { width: clamp(28px, 9vw, 42px); height: clamp(28px, 9vw, 42px); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: clamp(14px, 4vw, 19px); border: none; outline: none; color: var(--text); cursor: pointer; }
     .sudoku-cell.fixed { font-weight: 700; background: var(--bg2); color: var(--text); cursor: default; pointer-events: none; }
     .sudoku-cell.user-filled { color: var(--accent); }
     .sudoku-cell.err { color: var(--danger) !important; background: rgba(255,80,80,0.12); }
@@ -104,7 +147,11 @@
     .chess-slot-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; opacity: 0.7; }
     .chess-slot-name { font-size: 15px; font-weight: 600; }
     .chess-board-wrap { display: flex; flex-direction: column; align-items: center; }
-    .chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 360px; height: 360px; border: 4px solid var(--border); border-radius: 4px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .chess-board {
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      width: min(100vw - 48px, 360px); aspect-ratio: 1; max-width: 100%;
+      border: 4px solid var(--border); border-radius: 4px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
     .chess-sq { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative; }
     .chess-sq.light { background: #f0d9b5; }
     .chess-sq.dark { background: #b58863; }
@@ -116,15 +163,48 @@
     .chess-turn-indicator { padding: 4px 12px; border-radius: 20px; font-size: 13px; }
     .chess-turn-indicator.w { background: #ffffff; color: #000000; border: 1px solid #ccc; }
     .chess-turn-indicator.b { background: #000000; color: #ffffff; }
+
+    .bottle-arena-wrap { position: relative; width: min(280px, 85vw); height: min(280px, 85vw); margin: 16px auto; }
+    .bottle-arena { position: relative; width: 100%; height: 100%; border-radius: 50%; border: 2px dashed var(--border); background: var(--bg); }
+    .bottle-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 48px; z-index: 2; transition: transform 2s ease-out; }
+    .bottle-name-card { position: absolute; transform: translate(-50%,-50%); padding: 6px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; font-size: 11px; font-weight: 600; white-space: nowrap; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+    .bottle-name-card.picked { border-color: var(--accent); box-shadow: 0 0 12px rgba(108,99,255,0.5); background: rgba(108,99,255,0.2); }
+    .ludo-track { display: flex; gap: 24px; justify-content: center; margin: 20px 0; }
+    .ludo-player { text-align: center; padding: 16px 24px; background: var(--bg); border: 2px solid var(--border); border-radius: 12px; min-width: 100px; }
+    .ludo-player .pos { font-size: 32px; font-weight: 800; color: var(--accent); }
+
+    @media (max-width: 480px) {
+      .sudoku-race-header { flex-direction: column; max-width: 100%; }
+      .rps-arena { flex-direction: column; gap: 12px; }
+      .rps-vs { transform: rotate(90deg); }
+      .chess-lobby { flex-direction: column; }
+      .dab-hline { width: 40px !important; }
+      .dab-vline { height: 40px !important; }
+      .dab-box { width: 40px !important; height: 40px !important; font-size: 16px !important; }
+    }
   </style>
 </head>
 <body>
+  <div class="game-invite-bar hidden" id="game-invite-bar">
+    <span class="gi-text">Game invite</span>
+    <div class="game-invite-actions">
+      <button type="button" class="gi-decline" onclick="declineGameInvite()">Decline</button>
+      <button type="button" class="gi-accept" onclick="acceptGameInvite()">Join Game</button>
+    </div>
+  </div>
+  <div class="game-lobby" id="game-lobby-status">Pick a game, then invite from People → Play.</div>
+  <div class="game-action-bar">
+    <button type="button" class="btn-invite" id="btn-game-invite" onclick="requestGameInvite()">Invite player</button>
+    <span class="game-role-hint" id="game-role-hint"></span>
+  </div>
   <div class="nav">
     <button class="nav-btn active" data-game="ttt">Tic Tac Toe</button>
     <button class="nav-btn" data-game="dab">House Building</button>
     <button class="nav-btn" data-game="sudoku">⚡ Sudoku Race</button>
     <button class="nav-btn" data-game="rps">Rock Paper Scissors</button>
     <button class="nav-btn" data-game="chess">♟ Chess</button>
+    <button class="nav-btn" data-game="ludo">🎲 Ludo</button>
+    <button class="nav-btn" data-game="bottle">🍾 Bottle</button>
   </div>
 
   <!-- Tic Tac Toe -->
@@ -182,7 +262,7 @@
     </div>
 
     <div class="sudoku-status" id="sudoku-status">Press "New Race" to start a multiplayer puzzle</div>
-    <div class="sudoku-board" id="sudoku-board"></div>
+    <div class="sudoku-board-wrap"><div class="sudoku-board" id="sudoku-board"></div></div>
 
     <div class="sudoku-numpad">
       <button onclick="sudokuNumInput(1)">1</button>
@@ -223,6 +303,25 @@
     </div>
     <div id="rps-result" class="rps-result-text"></div>
     <button class="btn-reset hidden" id="rps-reset-btn" onclick="requestResetRPS()">Play Again</button>
+  </div>
+
+  <!-- Ludo -->
+  <div class="game-container hidden" id="game-ludo">
+    <div class="status" id="ludo-status">Ludo Race — first to space 30 wins</div>
+    <div class="ludo-track">
+      <div class="ludo-player"><div style="font-size:11px;color:var(--muted)">Player 1</div><div class="pos" id="ludo-p1-pos">0</div></div>
+      <div class="ludo-player"><div style="font-size:11px;color:var(--muted)">Player 2</div><div class="pos" id="ludo-p2-pos">0</div></div>
+    </div>
+    <button class="btn-reset" onclick="rollLudo()">🎲 Roll &amp; Move</button>
+  </div>
+
+  <!-- Bottle Round -->
+  <div class="game-container hidden" id="game-bottle">
+    <div class="status" id="bottle-status">Names around the bottle — host spins</div>
+    <div class="bottle-arena-wrap">
+      <div class="bottle-arena" id="bottle-arena"></div>
+    </div>
+    <button class="btn-reset" onclick="spinBottle()">🍾 Spin Bottle</button>
   </div>
 
   <!-- Chess -->

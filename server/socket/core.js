@@ -89,6 +89,20 @@ export function setupCoreHandlers(io) {
       socket.to(roomCode).emit('peer-media-state', { socketId: socket.id, video, audio });
     });
 
+    socket.on('focus-mode-start', ({ roomCode }) => {
+      socket.to(roomCode).emit('peer-focus-start', {
+        socketId: socket.id,
+        name: socket.data?.user?.name || 'Someone',
+      });
+    });
+
+    socket.on('focus-mode-end', ({ roomCode }) => {
+      socket.to(roomCode).emit('peer-focus-end', {
+        socketId: socket.id,
+        name: socket.data?.user?.name || 'Someone',
+      });
+    });
+
     // ── Screen Share Spotlight ─────────────────────────────────────
     // When a peer starts screen sharing, notify all others so they can
     // auto-pin that peer's tile as the "spotlight".

@@ -9,7 +9,7 @@ async function getOrCreateChatUser(supabaseUser) {
   return ChatUser.findOneAndUpdate(
     { supabaseId: supabaseUser.id },
     { name: supabaseUser.name, avatar_url: supabaseUser.avatar_url || null },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 }
 
@@ -56,7 +56,7 @@ router.post('/dm/:supabaseUserId', auth, async (req, res) => {
     const chat = await Chat.findOneAndUpdate(
       { participants: { $all: sorted }, isGroup: false },
       { $setOnInsert: { participants: sorted, isGroup: false } },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     ).populate('participants', 'supabaseId name avatar_url');
 
     if (req.io) req.io.to(`user:${req.params.supabaseUserId}`).emit('chat-created', { chatId: chat._id });

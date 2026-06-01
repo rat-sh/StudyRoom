@@ -27,6 +27,12 @@ let screenSharing = false;
 let activeFeature = null;
 let sidebarVisible = true;
 let emojiPickerOpen = false;
+let pendingRoomGameInvite = null;
+let focusModeActive = false;
+let focusInterval = null;
+let focusBlobUrl = null;
+let focusSecondsLeft = 0;
+const FOCUS_PREFS_KEY = 'sr_focus_prefs';
 
 // Raise hand (5s hold, priority grid, tap to lower)
 const HAND_HOLD_MS = 5000;
@@ -877,7 +883,7 @@ socket.on('room-peers', async peersArr => {
   for (const { socketId, user: u } of peersArr) {
     peerInfo[socketId] = u;
     addVideoTile(socketId, u.name, u.guest);
-    addToPeopleList(socketId, u.name, false, u.guest);
+    addToPeopleList(socketId, u.name, false, u.guest, u.id);
     await callPeer(socketId);
   }
   updateVideoGrid();
@@ -886,7 +892,7 @@ socket.on('room-peers', async peersArr => {
 socket.on('user-joined', ({ socketId, user: u }) => {
   peerInfo[socketId] = u;
   addVideoTile(socketId, u.name, u.guest);
-  addToPeopleList(socketId, u.name, false, u.guest);
+  addToPeopleList(socketId, u.name, false, u.guest, u.id);
   showToast(`${u.name} joined`);
   appendSystemMessage(`${u.name} joined the room`);
   updateVideoGrid();
@@ -1181,11 +1187,32 @@ function setTab(tab) {
   document.getElementById('tab-' + tab).style.color = '';
   document.getElementById('tab-' + tab).style.fontWeight = '';
   if (tab === 'chat') {
+    loadRoomBuddies();
     setTimeout(() => {
       const msgs = document.getElementById('chat-messages');
       msgs.scrollTop = msgs.scrollHeight;
     }, 50);
   }
+}
+
+async function loadRoomBuddies() {
+  const strip = document.getElementById('chat-buddies-strip');
+  if (!strip || !user?.id) return;
+  const { ok, data } = await API.get('/api/friends', true);
+  if (!ok || !data?.length) {
+    strip.style.display = 'none';
+    return;
+  }
+  const buddies = data.filter(b => b.status === 'accepted').map(b => b.friend);
+  if (!buddies.length) {
+    strip.style.display = 'none';
+    return;
+  }
+  strip.style.display = 'block';
+  strip.innerHTML = '<span style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px">Buddies — tap to DM</span>' +
+    buddies.map(f =>
+      `<span class="buddy-chip" onclick="messageBuddyFromRoom('${f.id}','${escapeHtml(f.name).replace(/'/g, "\\'")}')">${escapeHtml(f.name)}</span>`
+    ).join('');
 }
 
 // ── FEATURE PANEL ──────────────────────────────────────────────
@@ -1218,6 +1245,7 @@ function openMusicPanel() {
 function toggleFeature(name) {
   const wrap = document.getElementById('feat-panel-wrap');
   const videoAreaEl = document.getElementById('video-area');
+  const bodyLeft = document.getElementById('room-body-left');
   const btnId = name === 'whiteboard' ? 'feat-wb' : 'feat-' + name;
   const btn = document.getElementById(btnId);
   if (activeFeature === name) { closeFeature(); return; }
@@ -1226,10 +1254,29 @@ function toggleFeature(name) {
   if (btn) btn.classList.add('active');
   const f = FEATURES[name];
   document.getElementById('feat-panel-title').textContent = f.title;
+  const uid = user?.id ? encodeURIComponent(user.id) : '';
+  const uname = encodeURIComponent(user?.name || 'Player');
   document.getElementById('feat-panel-body').innerHTML =
-    `<iframe src="${f.src}?room=${roomCode}" style="width:100%;height:100%;border:none;flex:1" allow="camera;microphone"></iframe>`;
+    `<iframe src="${f.src}?room=${roomCode}&name=${uname}&uid=${uid}" style="width:100%;height:100%;border:none;flex:1;min-height:0" allow="camera;microphone"></iframe>`;
   wrap.classList.add('open');
+  bodyLeft?.classList.add('feat-layout');
+  bodyLeft?.classList.toggle('games-active', name === 'games');
   videoAreaEl.classList.add('feat-open');
+  document.getElementById('room-body')?.classList.add('feature-active');
+  requestAnimationFrame(() => {
+    updateVideoGrid();
+    _observeFeatLayout();
+  });
+}
+
+let _featResizeObs = null;
+function _observeFeatLayout() {
+  const left = document.getElementById('room-body-left');
+  if (!left || _featResizeObs) return;
+  _featResizeObs = new ResizeObserver(() => {
+    if (activeFeature) updateVideoGrid();
+  });
+  _featResizeObs.observe(left);
 }
 
 function closeFeature() {
@@ -1237,12 +1284,22 @@ function closeFeature() {
   document.querySelectorAll('.feat-ctrl').forEach(b => b.classList.remove('active'));
   document.getElementById('feat-panel-wrap').classList.remove('open');
   document.getElementById('video-area').classList.remove('feat-open');
+  const bodyLeft = document.getElementById('room-body-left');
+  bodyLeft?.classList.remove('feat-layout', 'games-active');
+  document.getElementById('room-body')?.classList.remove('feature-active');
   document.getElementById('feat-panel-body').innerHTML = '';
+  updateVideoGrid();
 }
 
 window.addEventListener('message', e => {
-  const { type, data } = e.data || {};
+  const { type, data, gameType, targetSocketId } = e.data || {};
   if (!type) return;
+  if (type === 'GAME_OPEN_INVITE') {
+    if (!sidebarVisible) toggleSidebar();
+    setTab('people');
+    showToast('Tap Play next to someone to invite them');
+    return;
+  }
   if (type === 'WHITEBOARD_DRAW') socket.emit('whiteboard-draw', { roomCode, data });
   if (type === 'WHITEBOARD_CLEAR') socket.emit('whiteboard-clear', { roomCode });
   if (type === 'TIMER_START') socket.emit('timer-start', { roomCode, duration: data.duration });
@@ -1310,7 +1367,7 @@ function removePeer(socketId) {
   if (row) row.remove();
 }
 
-function addToPeopleList(socketId, name, isYou = false, guest = false) {
+function addToPeopleList(socketId, name, isYou = false, guest = false, peerUserId = null) {
   const list = document.getElementById('people-list');
   const div = document.createElement('div');
   div.className = 'peer-row';
@@ -1318,14 +1375,22 @@ function addToPeopleList(socketId, name, isYou = false, guest = false) {
 
   // Room owner check — roomInfoCache may not be ready yet but will be within ms
   const isOwner = () => roomInfoCache && user && roomInfoCache.created_by === user.id;
+  const canDm = user?.id && peerUserId && !guest;
 
   div.innerHTML = `
     <div class="peer-av">${initials(name)}</div>
-    <div class="peer-name">${escapeHtml(name)}</div>
+    <div class="peer-name-wrap">
+      <div class="peer-name">${escapeHtml(name)}</div>
+      <span class="peer-focus-badge hidden" id="focus-badge-${socketId}">🎯 Focus</span>
+    </div>
     ${isYou ? '<span class="peer-you">You</span>' : ''}
     ${guest && !isYou ? '<span class="peer-guest">Guest</span>' : ''}
     ${!isYou ? `
-    <div class="peer-mod-wrap" style="margin-left:auto;position:relative">
+    <div class="peer-actions" style="margin-left:auto;display:flex;gap:4px;align-items:center">
+      <button class="peer-play-btn" title="Invite to game" onclick="openGameInviteMenu('${socketId}',event)">Play</button>
+      ${canDm ? `<button class="peer-msg-btn" title="Direct message" onclick="messageBuddyFromRoom('${peerUserId}','${escapeHtml(name).replace(/'/g, "\\'")}')">Chat</button>` : ''}
+    </div>
+    <div class="peer-mod-wrap" style="position:relative">
       <button class="peer-mod-btn" onclick="toggleModMenu('${socketId}',event)" title="Moderation"
               style="background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:4px;font-size:16px;line-height:1;display:none"
               id="mod-btn-${socketId}">⋯</button>
@@ -1553,6 +1618,195 @@ function getCursorColor(socketId) {
   }
   return peerColors[socketId];
 }
+// ── GAME INVITES (People → Play) ───────────────────────────────
+const GAME_PICK = [
+  { id: 'ttt', label: 'Tic Tac Toe' },
+  { id: 'dab', label: 'House Building' },
+  { id: 'rps', label: 'Rock Paper Scissors' },
+  { id: 'chess', label: 'Chess' },
+  { id: 'ludo', label: 'Ludo' },
+  { id: 'bottle', label: 'Bottle Round' },
+];
+
+function openGameInviteMenu(targetSocketId, e) {
+  e.stopPropagation();
+  document.querySelectorAll('.game-pick-menu').forEach(m => m.remove());
+  const row = document.getElementById('peer-row-' + targetSocketId);
+  if (!row) return;
+  const menu = document.createElement('div');
+  menu.className = 'game-pick-menu';
+  menu.innerHTML = GAME_PICK.map(g =>
+    `<button type="button" onclick="sendGameInviteToPeer('${targetSocketId}','${g.id}')">${g.label}</button>`
+  ).join('');
+  row.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+}
+
+function sendGameInviteToPeer(targetSocketId, gameType) {
+  document.querySelectorAll('.game-pick-menu').forEach(m => m.remove());
+  if (!activeFeature || activeFeature !== 'games') toggleFeature('games');
+  const frame = document.querySelector('#feat-panel-body iframe');
+  if (frame) {
+    frame.contentWindow.postMessage({
+      type: 'GAME_INVITE_PEER',
+      gameType,
+      targetSocketId,
+    }, '*');
+  } else {
+    socket.emit('game-invite', {
+      roomCode,
+      gameType,
+      targetSocketId,
+      hostName: user?.name || 'Host',
+    });
+  }
+  const name = peerInfo[targetSocketId]?.name || 'them';
+  showToast(`Game invite sent to ${name}`);
+}
+
+socket.on('game-invite-received', (inv) => {
+  pendingRoomGameInvite = inv;
+  showToast(`${inv.fromName} invited you to play! Open Games or accept below.`);
+  let bar = document.getElementById('room-game-invite-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'room-game-invite-bar';
+    bar.className = 'room-game-invite-bar';
+    document.querySelector('.room-header')?.appendChild(bar);
+  }
+  bar.innerHTML = `
+    <span>${escapeHtml(inv.fromName)} → ${escapeHtml(inv.gameType)}</span>
+    <button type="button" onclick="acceptRoomGameInvite()">Accept</button>
+    <button type="button" class="muted" onclick="declineRoomGameInvite()">Decline</button>
+  `;
+  bar.classList.remove('hidden');
+});
+
+function acceptRoomGameInvite() {
+  if (!pendingRoomGameInvite) return;
+  socket.emit('game-invite-respond', { sessionId: pendingRoomGameInvite.sessionId, accept: true });
+  if (!activeFeature || activeFeature !== 'games') toggleFeature('games');
+  document.getElementById('room-game-invite-bar')?.classList.add('hidden');
+  pendingRoomGameInvite = null;
+}
+
+function declineRoomGameInvite() {
+  if (!pendingRoomGameInvite) return;
+  socket.emit('game-invite-respond', { sessionId: pendingRoomGameInvite.sessionId, accept: false });
+  document.getElementById('room-game-invite-bar')?.classList.add('hidden');
+  pendingRoomGameInvite = null;
+}
+
+// ── BUDDY DM FROM ROOM ─────────────────────────────────────────
+async function messageBuddyFromRoom(friendUserId, friendName) {
+  if (!user?.id) {
+    showToast('Sign in to message buddies');
+    return;
+  }
+  try {
+    const { ok, data } = await API.post(`/api/chat/dm/${friendUserId}`, {}, true);
+    if (ok && data?.chatId) {
+      window.open(`/chat/${data.chatId}`, '_blank');
+      showToast(`Opening chat with ${friendName}`);
+    } else {
+      showToast('Could not start chat — add them as a buddy first');
+    }
+  } catch {
+    showToast('Chat unavailable');
+  }
+}
+
+// ── SAINT FOCUS MODE (in-room) ─────────────────────────────────
+function openFocusSetup() {
+  const prefs = JSON.parse(localStorage.getItem(FOCUS_PREFS_KEY) || '{}');
+  const dur = document.getElementById('room-focus-duration');
+  if (dur && prefs.duration) dur.value = prefs.duration;
+  document.getElementById('modal-room-focus')?.classList.add('open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeFocusSetup() {
+  document.getElementById('modal-room-focus')?.classList.remove('open');
+}
+
+function startRoomFocusMode() {
+  const fileInput = document.getElementById('room-focus-file');
+  const duration = parseInt(document.getElementById('room-focus-duration')?.value || '25', 10);
+  const err = document.getElementById('room-focus-err');
+  if (!fileInput?.files?.length) {
+    err.textContent = 'Choose a PDF to study with.';
+    err.classList.remove('hidden');
+    return;
+  }
+  const file = fileInput.files[0];
+  if (file.type !== 'application/pdf') {
+    err.textContent = 'Only PDF files are supported.';
+    err.classList.remove('hidden');
+    return;
+  }
+  err.classList.add('hidden');
+  localStorage.setItem(FOCUS_PREFS_KEY, JSON.stringify({ duration }));
+
+  if (focusBlobUrl) URL.revokeObjectURL(focusBlobUrl);
+  focusBlobUrl = URL.createObjectURL(file);
+  focusSecondsLeft = duration * 60;
+  focusModeActive = true;
+
+  document.getElementById('room-focus-pdf').src = focusBlobUrl;
+  document.getElementById('room-focus-overlay')?.classList.add('active');
+  closeFocusSetup();
+
+  socket.emit('focus-mode-start', { roomCode, duration });
+  document.getElementById('focus-badge-self')?.classList.remove('hidden');
+  updateRoomFocusTimerDisplay();
+
+  if (focusInterval) clearInterval(focusInterval);
+  focusInterval = setInterval(() => {
+    focusSecondsLeft--;
+    updateRoomFocusTimerDisplay();
+    if (focusSecondsLeft <= 0) endRoomFocusMode(true);
+  }, 1000);
+}
+
+function updateRoomFocusTimerDisplay() {
+  const m = Math.floor(Math.max(0, focusSecondsLeft) / 60).toString().padStart(2, '0');
+  const s = (Math.max(0, focusSecondsLeft) % 60).toString().padStart(2, '0');
+  const el = document.getElementById('room-focus-timer');
+  if (el) el.textContent = `${m}:${s}`;
+}
+
+function endRoomFocusMode(completed = false) {
+  if (focusInterval) {
+    clearInterval(focusInterval);
+    focusInterval = null;
+  }
+  focusModeActive = false;
+  if (focusBlobUrl) {
+    URL.revokeObjectURL(focusBlobUrl);
+    focusBlobUrl = null;
+  }
+  document.getElementById('room-focus-pdf').src = '';
+  document.getElementById('room-focus-overlay')?.classList.remove('active');
+  socket.emit('focus-mode-end', { roomCode });
+  document.getElementById('focus-badge-self')?.classList.add('hidden');
+  if (completed) {
+    showToast('Focus session complete — welcome back!');
+    appendSystemMessage(`${user?.name || 'Someone'} finished a focus session`);
+  }
+}
+
+socket.on('peer-focus-start', ({ socketId, name }) => {
+  const badge = document.getElementById('focus-badge-' + socketId);
+  if (badge) badge.classList.remove('hidden');
+  appendSystemMessage(`${name} entered focus mode 🎯`);
+});
+
+socket.on('peer-focus-end', ({ socketId, name }) => {
+  const badge = document.getElementById('focus-badge-' + socketId);
+  if (badge) badge.classList.add('hidden');
+  appendSystemMessage(`${name} is back from focus mode`);
+});
+
 // ── MUSIC PRESENCE (EventBus) ──────────────────────────────────
 if (window.EventBus) {
   window.EventBus.on('MUSIC_PRESENCE_UPDATE', (state) => {

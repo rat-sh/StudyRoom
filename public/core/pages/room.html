@@ -95,6 +95,7 @@
       <!-- CHAT PANEL -->
       <div class="rsb-panel" id="rsb-chat">
         <div class="chat-panel">
+          <div class="chat-buddies-strip" id="chat-buddies-strip" style="display:none;padding:8px 10px;border-bottom:1px solid var(--border);max-height:72px;overflow-y:auto"></div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-row">
             <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
@@ -156,6 +157,10 @@
       ontouchstart="startRaiseHandHold(event)" ontouchend="endRaiseHandHold()"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
     <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions"><i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i></button>
     <button class="ctrl-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar"><i data-lucide="panel-right" style="width:20px;height:20px"></i></button>
+    <button class="ctrl-btn focus-ctrl-btn" onclick="openFocusSetup()" title="Saint Focus — block distractions">
+      <i data-lucide="target" style="width:20px;height:20px"></i>
+      <span class="ctrl-label">Focus</span>
+    </button>
     <div class="ctrl-sep"></div>
     <button class="ctrl-btn" onclick="toggleTheme()" title="Toggle Theme"><i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i></button>
     <button class="ctrl-end" onclick="leaveRoom()">End Call</button>
@@ -278,6 +283,41 @@
       </button>
       <p style="margin:10px 0 0;font-size:11px;color:var(--muted);text-align:center">Your preferences are saved for next time</p>
     </div>
+  </div>
+</div>
+
+<!-- SAINT FOCUS SETUP -->
+<div class="modal-overlay" id="modal-room-focus" onclick="if(event.target===this)closeFocusSetup()">
+  <div class="modal" style="max-width:400px">
+    <h2 style="display:flex;align-items:center;gap:8px;margin:0 0 12px"><i data-lucide="target" style="width:20px;height:20px;color:var(--accent)"></i> Saint Focus</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Block distractions. Others see you in focus mode. Timer locks after you start.</p>
+    <label style="font-size:12px;font-weight:600;color:var(--muted)">Study PDF</label>
+    <input type="file" id="room-focus-file" accept="application/pdf" style="width:100%;margin:8px 0 14px;font-size:13px"/>
+    <label style="font-size:12px;font-weight:600;color:var(--muted)">Duration (minutes, set before start)</label>
+    <select id="room-focus-duration" style="width:100%;padding:10px;margin:8px 0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+      <option value="15">15 min</option>
+      <option value="25" selected>25 min</option>
+      <option value="45">45 min</option>
+      <option value="60">60 min</option>
+      <option value="90">90 min</option>
+    </select>
+    <p id="room-focus-err" class="hidden" style="color:var(--danger);font-size:12px;margin:8px 0 0"></p>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button type="button" onclick="closeFocusSetup()" style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer">Cancel</button>
+      <button type="button" onclick="startRoomFocusMode()" style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Start Focus</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAINT FOCUS OVERLAY -->
+<div class="room-focus-overlay" id="room-focus-overlay">
+  <div class="room-focus-main">
+    <iframe id="room-focus-pdf" title="Study material"></iframe>
+  </div>
+  <div class="room-focus-rail">
+    <div class="room-focus-timer" id="room-focus-timer">25:00</div>
+    <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0">No chat · no sounds until timer ends</p>
+    <button type="button" class="room-focus-end" onclick="if(confirm('End focus early?'))endRoomFocusMode()">End Focus</button>
   </div>
 </div>
 

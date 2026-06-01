@@ -159,29 +159,48 @@
   min-height: 0;
 }
 
-.video-area.feat-open {
+/* Feature open: main panel left, video rail on the right */
+.room-body-left.feat-layout {
+  flex-direction: row;
+}
+
+.room-body-left.feat-layout .feat-panel-wrap.open {
+  flex: 1;
+  min-width: 0;
+  border-top: none;
+  border-right: 1px solid var(--border);
+}
+
+.room-body-left.feat-layout .video-area.feat-open {
   flex: none;
-  height: 140px;
-  max-height: 40vh;
-  resize: vertical;
-  flex-direction: row;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.video-area.feat-open .video-grid {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-}
-.video-area.feat-open .video-tile {
-  width: 200px;
+  width: min(340px, 38vw);
+  min-width: 200px;
+  max-width: 420px;
   height: 100%;
-  flex-shrink: 0;
+  max-height: none;
+  padding: 0.5rem;
+  flex-direction: column;
+  resize: horizontal;
+  overflow: hidden;
 }
-.video-area.feat-open .video-tile video {
-  object-fit: contain;
+
+.room-body-left.feat-layout .video-area.feat-open .video-grid {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+}
+
+.room-body-left.feat-layout .video-area.feat-open .video-tile {
+  width: auto;
+  height: auto;
+  min-height: 80px;
+}
+
+.room-body-left.feat-layout .video-area.feat-open .video-tile video {
+  object-fit: cover;
   background: #000;
 }
+
 
 /* ── VIDEO GRID — Intelligent layout engine (driven by JS inline styles) ──
    The JS engine now sets gridTemplateColumns/Rows dynamically.
@@ -1104,7 +1123,15 @@
   flex: 1;
   overflow: hidden;
   display: flex;
-  flex-direction: column
+  flex-direction: column;
+  min-height: 0;
+}
+
+.feat-panel-body iframe {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── REACTIONS ── */
@@ -1319,4 +1346,307 @@
 .music-hint-glow {
   animation: musicHintPulse 1.8s ease;
   border-radius: var(--radius-xs);
+}
+
+/* ── People: Play / Chat / Focus badge ── */
+.peer-row {
+  position: relative;
+}
+
+.peer-name-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.peer-focus-badge {
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.peer-focus-badge.hidden {
+  display: none;
+}
+
+.peer-play-btn,
+.peer-msg-btn {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.peer-play-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.peer-msg-btn:hover {
+  border-color: var(--accent-muted);
+  background: var(--accent-light);
+}
+
+.game-pick-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 60;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.game-pick-menu button {
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.game-pick-menu button:hover {
+  background: var(--bg3);
+}
+
+.room-game-invite-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(108, 99, 255, 0.15);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.room-game-invite-bar.hidden {
+  display: none;
+}
+
+.room-game-invite-bar button {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.room-game-invite-bar button.muted {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+/* ── Saint Focus overlay ── */
+.room-focus-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--bg);
+  flex-direction: row;
+}
+
+.room-focus-overlay.active {
+  display: flex;
+}
+
+.room-focus-main {
+  flex: 1;
+  min-width: 0;
+  background: #1a1a1a;
+}
+
+.room-focus-main iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.room-focus-rail {
+  width: 120px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 10px;
+}
+
+.room-focus-timer {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.room-focus-end {
+  margin-top: 16px;
+  padding: 8px 12px;
+  font-size: 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.room-focus-end:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.chat-buddies-strip .buddy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin: 2px 4px 2px 0;
+  border-radius: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chat-buddies-strip .buddy-chip:hover {
+  border-color: var(--accent);
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+/* ══ MOBILE / TABLET — dynamic layout ═════════════════════════════ */
+@media (max-width: 900px) {
+  .room-header {
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem;
+    gap: 8px;
+  }
+
+  .room-header-title {
+    font-size: 13px;
+    order: 1;
+    flex: 1 1 100%;
+  }
+
+  .room-body.feature-active .room-body-left.feat-layout {
+    flex-direction: column;
+  }
+
+  .room-body.feature-active .room-body-left.feat-layout .feat-panel-wrap.open {
+    flex: 1;
+    min-height: 0;
+    border-right: none;
+    border-bottom: none;
+    order: 1;
+  }
+
+  .room-body.feature-active .room-body-left.feat-layout .video-area.feat-open {
+    order: 2;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: min(28vh, 200px);
+    max-height: 200px;
+    resize: none;
+    flex-shrink: 0;
+    padding: 0.35rem;
+  }
+
+  .room-body.feature-active .room-body-left.feat-layout.games-active .video-area.feat-open {
+    height: min(22vh, 160px);
+    max-height: 160px;
+  }
+
+  .room-body.feature-active .room-body-left.feat-layout .video-area.feat-open .video-grid {
+    display: grid !important;
+  }
+
+  .room-sidebar {
+    width: min(100%, 280px) !important;
+    max-width: 85vw;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
+  }
+
+  .controls-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    padding: 0.5rem 0.75rem;
+    gap: 6px;
+  }
+
+  .controls-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ctrl-end {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .room-body {
+    flex-direction: column;
+  }
+
+  .room-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 700;
+    width: min(100vw, 300px) !important;
+    max-width: 100vw;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+  }
+
+  .room-sidebar.collapsed {
+    transform: translateX(100%);
+    width: 0 !important;
+  }
+
+  .room-body-left {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .peer-play-btn,
+  .peer-msg-btn {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .game-pick-menu {
+    left: 0;
+    right: auto;
+    min-width: 160px;
+  }
 }

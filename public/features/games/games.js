@@ -1,15 +1,177 @@
 const socket = io();
+window._gameSocket = socket;
 const urlParams = new URLSearchParams(window.location.search);
 const roomCode = urlParams.get('room') || 'solo';
+const myName = decodeURIComponent(urlParams.get('name') || 'Player');
+const myUserId = urlParams.get('uid') || null;
 
-// Nav logic
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.game-container').forEach(c => c.classList.add('hidden'));
-    document.getElementById('game-' + btn.dataset.game).classList.remove('hidden');
+const GAME_LABELS = {
+  ttt: 'Tic Tac Toe', dab: 'House Building', rps: 'Rock Paper Scissors',
+  bottle: 'Bottle Round', ludo: 'Ludo Race', chess: 'Chess', sudoku: 'Sudoku Race',
+};
+
+let activeSessionId = null;
+let pendingInvite = null;
+let mySocketId = null;
+let lastSessionPayload = null;
+let currentGameId = 'ttt';
+
+const INVITE_GAMES = new Set(['ttt', 'dab', 'rps', 'ludo', 'bottle', 'chess']);
+
+function joinGamesRoom() {
+  socket.emit('join-room', {
+    roomCode,
+    user: { name: myName, id: myUserId || null, guest: !myUserId },
   });
+}
+
+socket.on('connect', () => {
+  mySocketId = socket.id;
+  joinGamesRoom();
+});
+
+// Parent room can request invite for a peer
+window.addEventListener('message', (e) => {
+  const { type, gameType, targetSocketId } = e.data || {};
+  if (type === 'GAME_INVITE_PEER' && gameType && targetSocketId) {
+    socket.emit('game-invite', { roomCode, gameType, targetSocketId, hostName: myName });
+    setLobbyStatus(`Invite sent for ${GAME_LABELS[gameType]}. Waiting…`);
+  }
+});
+
+function setLobbyStatus(text) {
+  const el = document.getElementById('game-lobby-status');
+  if (el) el.textContent = text;
+}
+
+function myRoleInPayload(p) {
+  if (!p || mySocketId == null) return null;
+  if (p.hostSocketId === mySocketId) return p.hostRole ?? 'p1';
+  if (p.guestSocketId === mySocketId) return p.guestRole ?? 'p2';
+  return null;
+}
+
+socket.on('game-invite-received', (inv) => {
+  pendingInvite = inv;
+  let bar = document.getElementById('game-invite-bar');
+  if (!bar) return;
+  bar.classList.remove('hidden');
+  bar.querySelector('.gi-text').textContent =
+    `${inv.fromName} invited you to ${GAME_LABELS[inv.gameType] || inv.gameType}`;
+});
+
+socket.on('game-invite-sent', ({ gameType }) => {
+  setLobbyStatus(`Invite sent for ${GAME_LABELS[gameType]}. Waiting for them to accept…`);
+});
+
+socket.on('game-invite-declined', () => {
+  setLobbyStatus('Invite declined.');
+  activeSessionId = null;
+});
+
+socket.on('game-invite-accepted', ({ guestName }) => {
+  setLobbyStatus(`Playing with ${guestName}`);
+  document.getElementById('game-invite-bar')?.classList.add('hidden');
+});
+
+socket.on('game-session-state', (payload) => {
+  activeSessionId = payload.sessionId;
+  lastSessionPayload = payload;
+  document.getElementById('game-invite-bar')?.classList.add('hidden');
+  if (payload.gameType === 'ttt') applyTttSession(payload);
+  if (payload.gameType === 'dab') applyDabSession(payload);
+  if (payload.gameType === 'rps') applyRpsSession(payload);
+  if (payload.gameType === 'bottle') {
+    socket.emit('game-bottle-join', { sessionId: payload.sessionId, name: myName });
+    applyBottleSession(payload);
+  }
+  if (payload.gameType === 'ludo') applyLudoSession(payload);
+  if (payload.gameType === 'chess') {
+    switchGame('chess');
+    socket.emit('room-chess-join', { roomCode });
+  }
+  updateGameHint();
+});
+
+socket.on('game-session-ended', () => {
+  activeSessionId = null;
+  lastSessionPayload = null;
+  setLobbyStatus('Invite someone from People → Play to start a match.');
+  updateGameHint();
+});
+
+function updateGameHint() {
+  const hint = document.getElementById('game-role-hint');
+  const btn = document.getElementById('btn-game-invite');
+  if (!hint) return;
+
+  if (currentGameId === 'sudoku') {
+    if (btn) btn.style.display = 'none';
+    hint.textContent = 'First two in room become players · anyone can start New Race';
+    return;
+  }
+
+  if (btn) btn.style.display = '';
+
+  if (!INVITE_GAMES.has(currentGameId)) {
+    hint.textContent = '';
+    return;
+  }
+
+  if (!activeSessionId) {
+    hint.textContent = 'Tap "Invite player" → pick someone in People tab';
+    return;
+  }
+
+  const role = myRoleInPayload(lastSessionPayload);
+  const opp = lastSessionPayload?.hostSocketId === mySocketId
+    ? lastSessionPayload?.guestName
+    : lastSessionPayload?.hostName;
+  if (role) {
+    hint.textContent = opp ? `Playing vs ${opp}` : 'Match active — your turn when highlighted';
+  } else {
+    hint.textContent = 'Spectating this match';
+  }
+}
+
+window.requestGameInvite = () => {
+  try {
+    window.parent.postMessage({ type: 'GAME_OPEN_INVITE', gameType: currentGameId }, '*');
+  } catch (_) {}
+  setLobbyStatus('Open People tab → tap Play beside your friend');
+};
+
+function switchGame(gameId) {
+  if (!gameId) return;
+  currentGameId = gameId;
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.game === gameId);
+  });
+  document.querySelectorAll('.game-container').forEach(c => c.classList.add('hidden'));
+  const panel = document.getElementById('game-' + gameId);
+  if (panel) panel.classList.remove('hidden');
+  updateGameHint();
+  if (gameId === 'sudoku') joinSudokuSlot();
+  if (gameId === 'chess') socket.emit('room-chess-join', { roomCode });
+}
+
+window.acceptGameInvite = () => {
+  if (!pendingInvite) return;
+  socket.emit('game-invite-respond', { sessionId: pendingInvite.sessionId, accept: true });
+  document.querySelector(`.nav-btn[data-game="${pendingInvite.gameType}"]`)?.click();
+  pendingInvite = null;
+  document.getElementById('game-invite-bar')?.classList.add('hidden');
+};
+
+window.declineGameInvite = () => {
+  if (!pendingInvite) return;
+  socket.emit('game-invite-respond', { sessionId: pendingInvite.sessionId, accept: false });
+  pendingInvite = null;
+  document.getElementById('game-invite-bar')?.classList.add('hidden');
+};
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchGame(btn.dataset.game));
 });
 
 // ── TIC TAC TOE ──────────────────────────────────────────────────
@@ -27,26 +189,27 @@ function updateTTTUI() {
 }
 
 function makeMoveTTT(index) {
+  if (!activeSessionId) {
+    document.getElementById('ttt-status').textContent =
+      'Use People → Play next to a friend to invite them first';
+    return;
+  }
   if (tttBoard[index] !== '' || document.getElementById('ttt-status').textContent.includes('wins')) return;
-  
-  if (!myPlayerTTT) myPlayerTTT = tttTurn; // Assign myself the current turn if unassigned
-  if (tttTurn !== myPlayerTTT) return; // Not my turn
-  
-  tttBoard[index] = myPlayerTTT;
-  updateTTTUI();
-  tttTurn = tttTurn === 'X' ? 'O' : 'X';
-  document.getElementById('ttt-status').textContent = `Turn: ${tttTurn}`;
-  
-  socket.emit('ttt-move', { roomCode, index, player: myPlayerTTT });
+  if (!myPlayerTTT || tttTurn !== myPlayerTTT) return;
+  socket.emit('game-ttt-move', { sessionId: activeSessionId, index });
 }
 
-socket.on('ttt-move', ({ index, player }) => {
-  if (!myPlayerTTT) myPlayerTTT = player === 'X' ? 'O' : 'X';
-  tttBoard[index] = player;
-  tttTurn = player === 'X' ? 'O' : 'X';
-  document.getElementById('ttt-status').textContent = `Turn: ${tttTurn}`;
+function applyTttSession(payload) {
+  const role = myRoleInPayload(payload);
+  myPlayerTTT = role;
+  tttBoard = [...payload.state.board];
+  tttTurn = payload.state.turn;
   updateTTTUI();
-});
+  const st = document.getElementById('ttt-status');
+  if (!role) st.textContent = 'Spectating';
+  else if (payload.state.turn === role) st.textContent = `Your turn (${role})`;
+  else st.textContent = `Opponent's turn (${payload.state.turn})`;
+}
 
 function checkWinnerTTT() {
   const winPatterns = [
@@ -66,8 +229,8 @@ function checkWinnerTTT() {
 }
 
 function requestResetTTT() {
-  resetTTTLocally();
-  socket.emit('ttt-reset', { roomCode });
+  if (activeSessionId) socket.emit('game-ttt-reset', { sessionId: activeSessionId });
+  else resetTTTLocally();
 }
 
 function resetTTTLocally() {
@@ -78,7 +241,6 @@ function resetTTTLocally() {
   updateTTTUI();
 }
 
-socket.on('ttt-reset', () => resetTTTLocally());
 
 
 // ── HOUSE BUILDING (Dots & Boxes) ──────────────────────────────
@@ -146,15 +308,26 @@ function renderDAB() {
 }
 
 function makeMoveDAB(type, r, c) {
+  if (!activeSessionId) {
+    document.getElementById('dab-status').textContent = 'Invite a friend from People → Play first';
+    return;
+  }
   if (type === 'h' && dabH[r][c]) return;
   if (type === 'v' && dabV[r][c]) return;
   if (document.getElementById('dab-status').textContent.includes('Wins')) return;
-  
-  if (!myPlayerDAB) myPlayerDAB = dabTurn; // Assign player
-  if (dabTurn !== myPlayerDAB) return; // Not my turn
-  
-  applyMoveDAB(type, r, c, myPlayerDAB);
-  socket.emit('dab-move', { roomCode, type, r, c, player: myPlayerDAB });
+  if (!myPlayerDAB || dabTurn !== myPlayerDAB) return;
+  socket.emit('game-dab-move', { sessionId: activeSessionId, type, r, c });
+}
+
+function applyDabSession(payload) {
+  myPlayerDAB = myRoleInPayload(payload);
+  const st = payload.state;
+  dabH = st.dabH.map(r => [...r]);
+  dabV = st.dabV.map(r => [...r]);
+  dabBoxes = st.dabBoxes.map(r => [...r]);
+  dabTurn = st.dabTurn;
+  dabScores = { ...st.dabScores };
+  renderDAB();
 }
 
 function applyMoveDAB(type, r, c, player) {
@@ -180,14 +353,9 @@ function applyMoveDAB(type, r, c, player) {
   renderDAB();
 }
 
-socket.on('dab-move', ({ type, r, c, player }) => {
-  if (!myPlayerDAB) myPlayerDAB = player === 1 ? 2 : 1;
-  applyMoveDAB(type, r, c, player);
-});
-
 function requestResetDAB() {
-  resetDABLocally();
-  socket.emit('dab-reset', { roomCode });
+  if (activeSessionId) socket.emit('game-dab-reset', { sessionId: activeSessionId });
+  else resetDABLocally();
 }
 
 function resetDABLocally() {
@@ -200,7 +368,6 @@ function resetDABLocally() {
   renderDAB();
 }
 
-socket.on('dab-reset', () => resetDABLocally());
 
 
 
@@ -474,12 +641,9 @@ function joinSudokuSlot() {
   socket.emit('sudoku-join', { roomCode });
 }
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.game === 'sudoku') joinSudokuSlot();
-  });
-});
 joinSudokuSlot();
+switchGame('ttt');
+updateGameHint();
 
 
 
@@ -489,25 +653,30 @@ let rpsOpponentMove = null;
 let rpsMyPlayer = null; // 'p1' or 'p2'
 
 function makeMoveRPS(move) {
-  if (rpsMyMove) return;
-  if (!rpsMyPlayer) rpsMyPlayer = 'p1';
+  if (!activeSessionId) {
+    document.getElementById('rps-status').textContent = 'Invite a friend from People → Play first';
+    return;
+  }
+  if (rpsMyMove || !rpsMyPlayer) return;
   rpsMyMove = move;
   document.getElementById('rps-status').textContent = 'Waiting for opponent…';
   document.getElementById('rps-my-display').textContent = getEmoji(move);
   document.querySelectorAll('.rps-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('rps-btn-' + move)?.classList.add('selected');
-  socket.emit('rps-move', { roomCode, move, player: rpsMyPlayer });
-  checkRPSResult();
+  socket.emit('game-rps-move', { sessionId: activeSessionId, move });
 }
 
-socket.on('rps-move', ({ move, player }) => {
-  if (!rpsMyPlayer) rpsMyPlayer = player === 'p1' ? 'p2' : 'p1';
-  if (player !== rpsMyPlayer) {
-    rpsOpponentMove = move;
-    document.getElementById('rps-opp-display').textContent = getEmoji(move);
-  }
+function applyRpsSession(payload) {
+  rpsMyPlayer = myRoleInPayload(payload);
+  const st = payload.state;
+  rpsMyMove = rpsMyPlayer === 'p1' ? st.p1Move : st.p2Move;
+  rpsOpponentMove = rpsMyPlayer === 'p1' ? st.p2Move : st.p1Move;
+  document.getElementById('rps-my-display').textContent = rpsMyMove ? getEmoji(rpsMyMove) : '?';
+  document.getElementById('rps-opp-display').textContent = rpsOpponentMove ? getEmoji(rpsOpponentMove) : '?';
+  document.getElementById('rps-choices').classList.toggle('hidden', !!(rpsMyMove && rpsOpponentMove));
+  document.getElementById('rps-reset-btn').classList.toggle('hidden', !(rpsMyMove && rpsOpponentMove));
   checkRPSResult();
-});
+}
 
 function checkRPSResult() {
   if (rpsMyMove && rpsOpponentMove) {
@@ -543,8 +712,8 @@ function getEmoji(move) {
 }
 
 function requestResetRPS() {
-  resetRPSLocally();
-  socket.emit('rps-reset', { roomCode });
+  if (activeSessionId) socket.emit('game-rps-reset', { sessionId: activeSessionId });
+  else resetRPSLocally();
 }
 
 function resetRPSLocally() {
@@ -561,7 +730,6 @@ function resetRPSLocally() {
   document.querySelectorAll('.rps-btn').forEach(btn => btn.classList.remove('selected'));
 }
 
-socket.on('rps-reset', () => resetRPSLocally());
 
 // ── ROOM CHESS (IN-MEETING) ────────────────────────────────────────────
 
@@ -667,15 +835,31 @@ function updateChessStatus() {
   }
 }
 
+function myChessSeat(payload) {
+  if (!payload || mySocketId == null) return null;
+  if (payload.hostSocketId === mySocketId) return 'w';
+  if (payload.guestSocketId === mySocketId) return 'b';
+  return null;
+}
+
 function joinChessSlot(slot) {
-  // Get name from parent window if iframe, fallback to guest
-  let name = 'Player';
-  try {
-    if (window.parent && window.parent.document.getElementById('self-name')) {
-      name = window.parent.document.getElementById('self-name').textContent || 'Player';
+  if (activeSessionId && lastSessionPayload?.gameType === 'chess') {
+    const seat = myChessSeat(lastSessionPayload);
+    if (seat && seat !== slot) {
+      document.getElementById('chess-status-text').textContent = 'This match is invite-only for the other seat';
+      return;
     }
-  } catch (e) {}
-  if (name === 'You') name = 'Player'; // if not properly retrieved
+  } else if (!activeSessionId) {
+    document.getElementById('chess-status-text').textContent = 'Invite via People → Play for a private chess match';
+    return;
+  }
+  let name = myName || 'Player';
+  try {
+    if (window.parent?.document?.getElementById('self-name')) {
+      const n = window.parent.document.getElementById('self-name').textContent;
+      if (n && n !== 'You') name = n;
+    }
+  } catch (_) {}
   socket.emit('room-chess-slot', { roomCode, slot, name });
 }
 
@@ -731,10 +915,64 @@ socket.on('room-chess-move', ({ fen }) => {
   updateChessStatus();
 });
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.game === 'chess') {
-      socket.emit('room-chess-join', { roomCode });
-    }
+// ── BOTTLE ROUND ─────────────────────────────────────────────────
+function applyBottleSession(payload) {
+  const arena = document.getElementById('bottle-arena');
+  const status = document.getElementById('bottle-status');
+  if (!arena) return;
+  const st = payload.state;
+  const n = st.players.length;
+  if (!n) {
+    arena.innerHTML = '<p style="color:var(--muted)">Join after accepting an invite</p>';
+    return;
+  }
+  let html = '<div class="bottle-center">🍾</div>';
+  st.players.forEach((p, i) => {
+    const angle = (360 / n) * i - 90;
+    const rad = (angle * Math.PI) / 180;
+    const x = 50 + 42 * Math.cos(rad);
+    const y = 50 + 42 * Math.sin(rad);
+    const picked = st.result?.socketId === p.socketId;
+    html += `<div class="bottle-name-card${picked ? ' picked' : ''}" style="left:${x}%;top:${y}%">${escapeHtml(p.name)}</div>`;
   });
-});
+  arena.innerHTML = html;
+  if (st.spinning) status.textContent = 'Spinning…';
+  else if (st.result) status.textContent = `${st.result.name} was picked!`;
+  else status.textContent = `${n} players — host spins the bottle`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function spinBottle() {
+  if (!activeSessionId) return;
+  socket.emit('game-bottle-spin', { sessionId: activeSessionId });
+}
+
+window.spinBottle = spinBottle;
+
+// ── LUDO RACE (simplified 2-player track) ────────────────────────
+function applyLudoSession(payload) {
+  const role = myRoleInPayload(payload);
+  const st = payload.state;
+  document.getElementById('ludo-p1-pos').textContent = st.positions.p1;
+  document.getElementById('ludo-p2-pos').textContent = st.positions.p2;
+  const status = document.getElementById('ludo-status');
+  if (st.winner) status.textContent = `Player ${st.winner} wins!`;
+  else if (role === st.turn) status.textContent = `Your turn — last roll: ${st.lastRoll ?? '—'}`;
+  else status.textContent = `Player ${st.turn}'s turn`;
+}
+
+function rollLudo() {
+  if (!activeSessionId) {
+    document.getElementById('ludo-status').textContent = 'Invite a friend from People → Play first';
+    return;
+  }
+  socket.emit('game-ludo-roll', { sessionId: activeSessionId });
+}
+
+window.rollLudo = rollLudo;
+
+setLobbyStatus('Pick a game below, then invite someone from People → Play.');
+updateGameHint();
