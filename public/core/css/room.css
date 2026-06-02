@@ -401,6 +401,16 @@
   transform: scaleX(-1)
 }
 
+.video-tile.active-speaker {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.4), 0 0 15px rgba(108, 99, 255, 0.2);
+  z-index: 10;
+  transform: scale(1.02);
+}
+.video-tile.you.active-speaker {
+  box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.6), 0 0 15px rgba(108, 99, 255, 0.3);
+}
+
 .tile-avatar {
   width: 52px;
   height: 52px;
@@ -499,61 +509,143 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-/* ── CONTROLS BAR ── */
+/* ── CONTROLS BAR (Zoom Style) ── */
 .controls-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0.65rem 1rem;
+  justify-content: space-between;
+  padding: 0.5rem 1.5rem;
   flex-shrink: 0;
   background: var(--bg2);
   border-top: 1px solid var(--border);
+  min-height: 64px;
 }
 
-.ctrl-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--border2);
-  background: var(--bg3);
-  cursor: pointer;
+.ctrl-group {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+.ctrl-group-left {
+  flex: 1;
+  justify-content: flex-start;
+}
+.ctrl-group-center {
+  flex: 2;
   justify-content: center;
-  font-size: 18px;
+  gap: 16px;
+}
+.ctrl-group-right {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.ctrl-btn-zoom {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   color: var(--text2);
-  transition: all 0.12s;
-  position: relative;
+  transition: all 0.15s;
+  min-width: 60px;
+  border-radius: 8px;
+  padding: 6px 4px;
 }
 
-.ctrl-btn:hover {
-  background: var(--bg4);
-  border-color: var(--border2);
+.ctrl-btn-zoom:hover {
+  background: var(--bg3);
   color: var(--text);
-  transform: scale(1.06)
 }
 
-.ctrl-btn.off {
-  background: rgba(255, 71, 87, 0.2);
-  border-color: rgba(255, 71, 87, 0.55);
+.ctrl-btn-zoom.off {
   color: var(--danger, #ff4757);
 }
 
-.ctrl-btn.off i {
-  color: var(--danger, #ff4757);
+.ctrl-btn-zoom.active, .ctrl-btn-zoom.share-btn.active {
+  color: var(--success);
 }
 
-.ctrl-btn.hand-holding {
-  background: rgba(253, 203, 110, 0.25);
-  border-color: var(--warning);
+.ctrl-btn-zoom.hand-holding {
+  color: var(--warning);
   animation: handPulse 0.8s ease infinite;
 }
 
-.ctrl-btn.hand-active {
-  background: rgba(253, 203, 110, 0.35);
-  border-color: var(--warning);
-  color: var(--warning);
+.ctrl-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: inherit;
+  pointer-events: none;
+}
+
+/* ── MORE MENU POPOVER ── */
+.more-menu-popup {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 100;
+  min-width: 180px;
+}
+.more-menu-popup.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.more-item:hover {
+  background: var(--bg3);
+}
+
+.more-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+.ctrl-end {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 8px;
+  background: var(--danger);
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ctrl-end:hover {
+  background: var(--danger-dark);
 }
 
 @keyframes handPulse {
@@ -561,102 +653,10 @@
   50% { transform: scale(1.08); }
 }
 
-.video-tile.hand-priority {
-  order: -1;
-  border-color: var(--warning) !important;
-  box-shadow: 0 0 0 2px rgba(253, 203, 110, 0.5);
-}
-
-.video-tile .hand-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: var(--warning);
-  color: #000;
-  font-size: 10px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  z-index: 6;
-  display: none;
-}
-
-.video-tile.hand-priority .hand-badge {
-  display: block;
-}
-
-.ctrl-btn.active {
-  background: var(--accent-light);
-  border-color: var(--accent-muted);
-  color: var(--accent);
-}
-
-.ctrl-end {
-  height: 40px;
-  padding: 0 22px;
-  border-radius: 22px;
-  background: var(--danger);
-  border: none;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, transform 0.1s;
-}
-
-.ctrl-end:hover {
-  background: var(--danger-dark);
-  transform: scale(1.03)
-}
-
-.ctrl-sep {
-  width: 1px;
-  height: 28px;
-  background: var(--border);
-  flex-shrink: 0;
-  margin: 0 4px
-}
-
-/* Feature ctrl buttons in bottom bar — slightly taller to fit label */
-.ctrl-btn.feat-ctrl {
-  width: auto;
-  height: auto;
-  border-radius: var(--radius-sm);
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 10px;
-  font-size: 9px;
-  border-radius: 10px;
-}
-
-.ctrl-label {
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--muted);
-  line-height: 1;
-  pointer-events: none;
-}
-
-.ctrl-btn.feat-ctrl:hover .ctrl-label {
-  color: var(--text)
-}
-
-.ctrl-btn.feat-ctrl.active .ctrl-label {
-  color: var(--accent)
-}
-
-/* Responsive: at narrow widths (zoomed in browser) hide the label */
 @media(max-width:720px) {
-  .ctrl-label {
-    display: none
-  }
-
-  .ctrl-btn.feat-ctrl {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    padding: 0;
-  }
+  .ctrl-label { display: none; }
+  .ctrl-group-center { gap: 4px; }
+  .ctrl-btn-zoom { min-width: 44px; }
 }
 
 /* ── SIDEBAR RESIZE HANDLE ── */
@@ -1649,4 +1649,33 @@
     right: auto;
     min-width: 160px;
   }
+}
+
+/* ── RAISE HAND ── */
+.hand-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+.hand-badge.show {
+  display: flex;
+}
+.ctrl-btn-zoom.hand-active {
+  background: rgba(234, 179, 8, 0.15) !important;
+  color: #eab308 !important;
+  border-color: rgba(234, 179, 8, 0.3) !important;
+}
+.ctrl-btn-zoom.hand-active i {
+  color: #eab308 !important;
 }

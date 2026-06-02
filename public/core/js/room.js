@@ -41,6 +41,68 @@ let myHandRaised = false;
 let handHoldTimer = null;
 const raisedHandOrder = []; // socketIds first = front of grid
 
+// Active Speakers Tracking
+let activeSpeakers = [];
+let audioCtx = null;
+let analyser = null;
+let dataArray = null;
+let localAudioSource = null;
+
+function checkLocalAudio() {
+  if (!micOn || !localStream) return 0;
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      const track = localStream.getAudioTracks()[0];
+      if (track) {
+        localAudioSource = audioCtx.createMediaStreamSource(new MediaStream([track]));
+        localAudioSource.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+      }
+    }
+    if (!analyser || !dataArray) return 0;
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+    return sum / dataArray.length;
+  } catch (e) { return 0; }
+}
+
+async function monitorActiveSpeakers() {
+  if (Object.keys(peers).length === 0 && !localStream) return;
+  
+  let currentSpeakers = [];
+  
+  // Check local user audio level
+  const localVol = checkLocalAudio();
+  if (localVol > 10) currentSpeakers.push('self');
+  
+  // Check remote peers audio level via WebRTC stats
+  for (const [sid, pc] of Object.entries(peers)) {
+    if (!pc) continue;
+    try {
+      const stats = await pc.getStats();
+      let level = 0;
+      stats.forEach(report => {
+        if (report.type === 'inbound-rtp' && (report.kind === 'audio' || report.mediaType === 'audio')) {
+          if (typeof report.audioLevel === 'number') level = report.audioLevel;
+        }
+      });
+      // audioLevel is 0.0 to 1.0. Typically > 0.01 means someone is speaking.
+      if (level > 0.01) currentSpeakers.push(sid);
+    } catch(e) {}
+  }
+  
+  const changed = JSON.stringify(currentSpeakers) !== JSON.stringify(activeSpeakers);
+  if (changed) {
+    activeSpeakers = currentSpeakers;
+    updateVideoGrid();
+  }
+}
+setInterval(monitorActiveSpeakers, 300);
+
 // Pinning / Spotlight state
 let pinnedSocketId = null; // null = normal grid, 'self' or socketId = pinned
 
@@ -379,8 +441,8 @@ async function toggleMic() {
   }
   const btn = document.getElementById('btn-mic');
   btn.innerHTML = micOn
-    ? '<i data-lucide="mic" style="width:20px;height:20px"></i>'
-    : '<i data-lucide="mic-off" style="width:20px;height:20px"></i>';
+    ? '<i data-lucide="mic" style="width:20px;height:20px"></i><span class="ctrl-label">Mute</span>'
+    : '<i data-lucide="mic-off" style="width:20px;height:20px"></i><span class="ctrl-label">Unmute</span>';
   btn.classList.toggle('off', !micOn);
   document.getElementById('self-mic-off').classList.toggle('hidden', micOn);
   socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
@@ -405,7 +467,7 @@ async function toggleCam() {
     if (tileSelf) tileSelf.classList.add('cam-off');
     document.getElementById('self-avatar').style.display = 'flex';
     document.getElementById('self-name').style.display = 'block';
-    btn.innerHTML = '<i data-lucide="video-off" style="width:20px;height:20px"></i>';
+    btn.innerHTML = '<i data-lucide="video-off" style="width:20px;height:20px"></i><span class="ctrl-label">Start Video</span>';
     btn.classList.add('off');
     document.getElementById('self-cam-off')?.classList.remove('hidden');
     // ── FIX 3a: Tell peers the camera is off (track was stopped, not
@@ -422,7 +484,7 @@ async function toggleCam() {
       const s = await ensureLocalStream(true, micOn);
       if (!s) return;
       camOn = true;
-      btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i>';
+      btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span>';
       btn.classList.remove('off');
       document.getElementById('self-cam-off')?.classList.add('hidden');
       socket.emit('media-state', { roomCode, video: true, audio: micOn });
@@ -457,7 +519,7 @@ async function toggleCam() {
         if (tileSelf) tileSelf.classList.remove('cam-off');
         document.getElementById('self-avatar').style.display = 'none';
         document.getElementById('self-name').style.display = 'none';
-        btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i>';
+        btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span>';
         btn.classList.remove('off');
         document.getElementById('self-cam-off')?.classList.add('hidden');
         socket.emit('media-state', { roomCode, video: true, audio: micOn });
@@ -474,7 +536,7 @@ async function toggleScreen() {
     screenSharing = false;
     const btn = document.getElementById('btn-screen');
     btn.classList.remove('active');
-    btn.innerHTML = '<i data-lucide="monitor" style="width:20px;height:20px"></i>';
+    btn.innerHTML = '<i data-lucide="monitor" style="width:20px;height:20px"></i><span class="ctrl-label">Share</span>';
     const camTrack = localStream?.getVideoTracks()[0] ?? null;
     replaceVideoTrack(camTrack);
     // Remove screen-share styling from self tile
@@ -491,7 +553,7 @@ async function toggleScreen() {
     screenSharing = true;
     const btn = document.getElementById('btn-screen');
     btn.classList.add('active');
-    btn.innerHTML = '<i data-lucide="square" style="width:20px;height:20px;fill:currentColor"></i>';
+    btn.innerHTML = '<i data-lucide="square" style="width:20px;height:20px;fill:currentColor"></i><span class="ctrl-label">Stop Share</span>';
     replaceVideoTrack(screenStream.getVideoTracks()[0]);
     screenStream.getVideoTracks()[0].onended = () => toggleScreen();
     // Mark self tile as screen share + auto-pin for local user
@@ -616,24 +678,36 @@ function updateVideoGrid() {
   if (pinnedSocketId) return;
 
   let tiles = Array.from(grid.querySelectorAll('.video-tile'));
-  // Priority: raised hands first (up to 10 visible prominence)
-  if (raisedHandOrder.length) {
-    tiles.sort((a, b) => {
-      const aid = a.id.replace('tile-', '');
-      const bid = b.id.replace('tile-', '');
-      const ai = raisedHandOrder.indexOf(aid);
-      const bi = raisedHandOrder.indexOf(bid);
-      if (ai === -1 && bi === -1) return 0;
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-    tiles.forEach(t => grid.appendChild(t));
-    tiles.forEach(t => {
-      const sid = t.id.replace('tile-', '');
-      t.classList.toggle('hand-priority', raisedHandOrder.includes(sid));
-    });
-  }
+  
+  // Priority: raised hands first, then active speakers
+  tiles.sort((a, b) => {
+    const aid = a.id.replace('tile-', '');
+    const bid = b.id.replace('tile-', '');
+    const aHand = raisedHandOrder.indexOf(aid);
+    const bHand = raisedHandOrder.indexOf(bid);
+    const aActive = activeSpeakers.includes(aid) ? 1 : 0;
+    const bActive = activeSpeakers.includes(bid) ? 1 : 0;
+    
+    // 1. Raised hands have absolute priority
+    if (aHand !== -1 && bHand !== -1) return aHand - bHand;
+    if (aHand !== -1) return -1;
+    if (bHand !== -1) return 1;
+    
+    // 2. Active speakers come next
+    if (aActive > bActive) return -1;
+    if (bActive > aActive) return 1;
+    
+    // 3. Keep stable order otherwise
+    return 0;
+  });
+  
+  tiles.forEach(t => grid.appendChild(t));
+  
+  tiles.forEach(t => {
+    const sid = t.id.replace('tile-', '');
+    t.classList.toggle('hand-priority', raisedHandOrder.includes(sid));
+    t.classList.toggle('active-speaker', activeSpeakers.includes(sid));
+  });
   const count = tiles.length;
   if (count === 0) return;
 
@@ -1075,32 +1149,33 @@ function appendSystemMessage(text) {
 }
 
 // ── REACTIONS ──────────────────────────────────────────────────
-function startRaiseHandHold(e) {
-  if (e?.preventDefault) e.preventDefault();
+// New toggle for raise hand (click based)
+function toggleRaiseHand() {
   if (myHandRaised) {
     lowerHand();
-    return;
-  }
-  const btn = document.getElementById('btn-hand');
-  btn?.classList.add('hand-holding');
-  clearTimeout(handHoldTimer);
-  handHoldTimer = setTimeout(() => {
-    btn?.classList.remove('hand-holding');
+  } else {
     raiseHandNow();
-  }, HAND_HOLD_MS);
-  showToast('Hold 5 seconds to raise your hand…');
+  }
+}
+
+// Preserve old hold functions (no longer used) but keep for backward compatibility
+function startRaiseHandHold(e) {
+  if (e?.preventDefault) e.preventDefault();
+  toggleRaiseHand();
 }
 
 function endRaiseHandHold() {
-  clearTimeout(handHoldTimer);
-  document.getElementById('btn-hand')?.classList.remove('hand-holding');
+  // No-op
 }
 
 function raiseHandNow() {
   myHandRaised = true;
+  // Show hand badge on own tile
+  const selfBadge = document.getElementById('tile-self')?.querySelector('.hand-badge');
+  if (selfBadge) selfBadge.classList.add('show');
   document.getElementById('btn-hand')?.classList.add('hand-active');
   socket.emit('raise-hand', { roomCode, active: true });
-  spawnReaction('✋', 'tile-self');
+  // Emoji reaction removed for professional raise hand
   showToast('✋ Hand raised — you are in the speaker queue');
   setTimeout(() => {
     if (!myHandRaised) return;
@@ -1110,6 +1185,9 @@ function raiseHandNow() {
 
 function lowerHand() {
   myHandRaised = false;
+  // Hide hand badge on own tile
+  const selfBadge = document.getElementById('tile-self')?.querySelector('.hand-badge');
+  if (selfBadge) selfBadge.classList.remove('show');
   document.getElementById('btn-hand')?.classList.remove('hand-active', 'hand-holding');
   socket.emit('raise-hand', { roomCode, active: false });
   document.getElementById('tile-self')?.classList.remove('hand-priority');
@@ -1117,7 +1195,24 @@ function lowerHand() {
 
 socket.on('hands-updated', ({ hands }) => {
   raisedHandOrder.length = 0;
+  // Reset all hand badges
+  document.querySelectorAll('.hand-badge').forEach(b => b.classList.remove('show'));
   (hands || []).forEach(h => raisedHandOrder.push(h.socketId));
+  // Show badges for raised hands and reorder tiles
+  // Show badges for raised hands and reorder tiles preserving click order
+  for (let i = raisedHandOrder.length - 1; i >= 0; i--) {
+    const sid = raisedHandOrder[i];
+    const tile = document.getElementById('tile-' + sid);
+    if (tile) {
+      // Show badge
+      const badge = tile.querySelector('.hand-badge');
+      if (badge) badge.classList.add('show');
+      // Move tile to front based on order (first raised first)
+      const grid = document.getElementById('video-grid');
+      if (grid) grid.prepend(tile);
+    }
+  }
+  // Update hand-priority visual styling for all tiles
   document.querySelectorAll('.video-tile').forEach(t => {
     const sid = t.id.replace('tile-', '');
     t.classList.toggle('hand-priority', raisedHandOrder.includes(sid));
@@ -1345,7 +1440,7 @@ function addVideoTile(socketId, name, guest = false) {
     <video id="vid-${socketId}" autoplay playsinline></video>
     <div class="tile-avatar" id="av-${socketId}">${initials(name)}</div>
     <div class="tile-name" id="nm-${socketId}">${escapeHtml(name)}</div>
-    <span class="hand-badge">✋ Hand</span>
+    <div class="hand-badge">✋</div>
     <div class="tile-mic-off hidden" id="mic-${socketId}"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
     <div class="tile-cam-off hidden" id="cam-${socketId}"><i data-lucide="video-off" style="width:14px;height:14px"></i></div>
     ${guest ? `<div class="tile-guest-tag">Guest</div>` : ''}
@@ -1839,3 +1934,81 @@ if (window.EventBus) {
     }
   });
 }
+
+// ── MORE MENU POPOVER ──────────────────────────────────────────
+function toggleMoreMenu() {
+  const menu = document.getElementById('more-menu');
+  if (menu) {
+    menu.classList.toggle('open');
+  }
+}
+
+// Close more menu when clicking outside
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('more-menu');
+  const btn = document.getElementById('btn-more');
+  if (menu && menu.classList.contains('open')) {
+    if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+      menu.classList.remove('open');
+    }
+  }
+});
+
+// ── ACTIVE SPEAKER MONITOR ────────────────────────────────
+let activeSpeakerId = null;
+function startActiveSpeakerMonitor() {
+  if (!window.peers) return;
+  const interval = setInterval(async () => {
+    let maxLevel = 0;
+    let activeId = null;
+    // Remote peers audio levels
+    for (const [socketId, pc] of Object.entries(window.peers)) {
+      try {
+        const stats = await pc.getStats();
+        stats.forEach(report => {
+          if (report.type === 'track' && report.kind === 'audio' && report.remote) {
+            const level = report.audioLevel || 0;
+            if (level > maxLevel) {
+              maxLevel = level;
+              activeId = socketId;
+            }
+          }
+        });
+      } catch (e) { /* ignore */ }
+    }
+    // Local mic level
+    if (window.localStream) {
+      const audioTracks = window.localStream.getAudioTracks();
+      if (audioTracks.length) {
+        if (!window._micAnalyser) {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaStreamSource(window.localStream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          window._micAnalyser = { audioCtx, analyser, dataArray: new Uint8Array(analyser.frequencyBinCount) };
+        }
+        const { analyser, dataArray } = window._micAnalyser;
+        analyser.getByteFrequencyData(dataArray);
+        const sum = dataArray.reduce((a, b) => a + b, 0);
+        const level = sum / (dataArray.length * 255);
+        if (level > maxLevel) {
+          maxLevel = level;
+          activeId = 'self';
+        }
+      }
+    }
+    if (activeId !== activeSpeakerId) {
+      if (activeSpeakerId) {
+        const prev = document.getElementById(`tile-${activeSpeakerId}`);
+        if (prev) prev.classList.remove('active-speaker');
+      }
+      if (activeId) {
+        const cur = document.getElementById(`tile-${activeId}`);
+        if (cur) cur.classList.add('active-speaker');
+      }
+      activeSpeakerId = activeId;
+    }
+  }, 500);
+}
+startActiveSpeakerMonitor();

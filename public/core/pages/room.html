@@ -54,7 +54,7 @@
             <div class="tile-avatar" id="self-avatar">?</div>
             <div class="tile-name" id="self-name">You</div>
             <div class="tile-you-tag">You</div>
-            <span class="hand-badge">✋ Hand</span>
+            <div class="hand-badge">✋</div>
             <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
             <div class="tile-cam-off hidden" id="self-cam-off"><i data-lucide="video-off" style="width:14px;height:14px"></i></div>
             <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('self')">
@@ -122,48 +122,77 @@
 
   </div><!-- /room-body -->
 
-  <!-- CONTROLS BAR — Google Meet style -->
+  <!-- CONTROLS BAR — Zoom style -->
   <div class="controls-bar">
-    <!-- Media controls -->
-    <button class="ctrl-btn" id="btn-mic" onclick="toggleMic()" title="Microphone"><i data-lucide="mic" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()" title="Camera"><i data-lucide="camera" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share"><i data-lucide="monitor" style="width:20px;height:20px"></i></button>
-    <div class="ctrl-sep"></div>
-    <!-- Feature buttons -->
-    <button class="ctrl-btn feat-ctrl" id="feat-wb" onclick="toggleFeature('whiteboard')" title="Whiteboard">
-      <i data-lucide="pen-tool" style="width:18px;height:18px"></i>
-      <span class="ctrl-label">Board</span>
-    </button>
-    <button class="ctrl-btn feat-ctrl" id="feat-timer" onclick="toggleFeature('timer')" title="Pomodoro">
-      <i data-lucide="timer" style="width:18px;height:18px"></i>
-      <span class="ctrl-label">Timer</span>
-    </button>
-    <button class="ctrl-btn feat-ctrl" id="feat-files" onclick="toggleFeature('files')" title="Files">
-      <i data-lucide="folder" style="width:18px;height:18px"></i>
-      <span class="ctrl-label">Files</span>
-    </button>
-    <button class="ctrl-btn feat-ctrl" id="feat-games" onclick="toggleFeature('games')" title="Games">
-      <i data-lucide="gamepad-2" style="width:18px;height:18px"></i>
-      <span class="ctrl-label">Games</span>
-    </button>
-    <button class="ctrl-btn feat-ctrl" id="feat-music" onclick="openMusicPanel()" title="Music Bot">
-      <i data-lucide="music" style="width:18px;height:18px"></i>
-      <span class="ctrl-label">Music</span>
-    </button>
-    <div class="ctrl-sep"></div>
-    <!-- Reactions & extras -->
-    <button class="ctrl-btn" id="btn-hand" title="Hold 5s to raise hand · tap again to lower"
-      onmousedown="startRaiseHandHold(event)" onmouseup="endRaiseHandHold()" onmouseleave="endRaiseHandHold()"
-      ontouchstart="startRaiseHandHold(event)" ontouchend="endRaiseHandHold()"><i data-lucide="hand" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions"><i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i></button>
-    <button class="ctrl-btn" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar"><i data-lucide="panel-right" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-btn focus-ctrl-btn" onclick="openFocusSetup()" title="Saint Focus — block distractions">
-      <i data-lucide="target" style="width:20px;height:20px"></i>
-      <span class="ctrl-label">Focus</span>
-    </button>
-    <div class="ctrl-sep"></div>
-    <button class="ctrl-btn" onclick="toggleTheme()" title="Toggle Theme"><i data-lucide="moon" id="theme-icon" style="width:20px;height:20px"></i></button>
-    <button class="ctrl-end" onclick="leaveRoom()">End Call</button>
+    <!-- LEFT GROUP -->
+    <div class="ctrl-group ctrl-group-left">
+      <button class="ctrl-btn-zoom" id="btn-mic" onclick="toggleMic()" title="Microphone">
+        <i data-lucide="mic" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Mute</span>
+      </button>
+      <button class="ctrl-btn-zoom" id="btn-cam" onclick="toggleCam()" title="Camera">
+        <i data-lucide="camera" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Stop Video</span>
+      </button>
+    </div>
+
+    <!-- CENTER GROUP -->
+    <div class="ctrl-group ctrl-group-center">
+      <button class="ctrl-btn-zoom" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Participants & Chat">
+        <i data-lucide="users" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Participants</span>
+      </button>
+      <button class="ctrl-btn-zoom" id="btn-hand" onclick="toggleRaiseHand()" title="Raise Hand">
+        <i data-lucide="hand" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Raise Hand</span>
+      </button>
+        
+      <button class="ctrl-btn-zoom" id="btn-emoji-bar" onclick="toggleEmojiPicker()" title="Reactions">
+        <i data-lucide="smile" style="width:20px;height:20px;pointer-events:none"></i>
+        <span class="ctrl-label">React</span>
+      </button>
+      <button class="ctrl-btn-zoom share-btn" id="btn-screen" onclick="toggleScreen()" title="Screen Share">
+        <i data-lucide="monitor" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Share</span>
+      </button>
+      
+      <div style="position:relative">
+        <button class="ctrl-btn-zoom" id="btn-more" onclick="toggleMoreMenu()" title="More Options">
+          <i data-lucide="more-horizontal" style="width:20px;height:20px"></i>
+          <span class="ctrl-label">More</span>
+        </button>
+        <!-- MORE MENU POPOVER -->
+        <div class="more-menu-popup" id="more-menu">
+          <button class="more-item" onclick="toggleFeature('whiteboard'); toggleMoreMenu()">
+            <i data-lucide="pen-tool" style="width:16px;height:16px"></i> Whiteboard
+          </button>
+          <button class="more-item" onclick="toggleFeature('timer'); toggleMoreMenu()">
+            <i data-lucide="timer" style="width:16px;height:16px"></i> Pomodoro Timer
+          </button>
+          <button class="more-item" onclick="toggleFeature('files'); toggleMoreMenu()">
+            <i data-lucide="folder" style="width:16px;height:16px"></i> Files
+          </button>
+          <button class="more-item" onclick="toggleFeature('games'); toggleMoreMenu()">
+            <i data-lucide="gamepad-2" style="width:16px;height:16px"></i> Games
+          </button>
+          <button class="more-item" onclick="openMusicPanel(); toggleMoreMenu()">
+            <i data-lucide="music" style="width:16px;height:16px"></i> Music Bot
+          </button>
+          <button class="more-item" onclick="openFocusSetup(); toggleMoreMenu()">
+            <i data-lucide="target" style="width:16px;height:16px"></i> Saint Focus
+          </button>
+          <div class="more-divider"></div>
+          <button class="more-item" onclick="toggleTheme(); toggleMoreMenu()">
+            <i data-lucide="moon" id="theme-icon" style="width:16px;height:16px"></i> Toggle Theme
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT GROUP -->
+    <div class="ctrl-group ctrl-group-right">
+      <button class="ctrl-end" onclick="leaveRoom()">End Call</button>
+    </div>
   </div>
 </div>
 

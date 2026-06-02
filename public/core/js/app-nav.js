@@ -4,7 +4,6 @@ let sbCollapsed = false;
 const SIDEBAR_PAGES = {
   home: { panel: 'home', href: '/dashboard?panel=home' },
   rooms: { panel: 'rooms', href: '/dashboard?panel=rooms' },
-  games: { panel: 'games', href: '/dashboard?panel=games' },
   friends: { panel: 'friends', href: '/dashboard?panel=friends' },
   chat: { href: '/chat' },
   lobby: { href: '/lobby' },
@@ -124,7 +123,6 @@ function initAppSidebar(active) {
     <div class="nav-section-label sidebar-section-label">Main</div>
     ${navItem(active, 'home', { title: 'Home', label: 'Home', icon: '<i data-lucide="home"></i>', panel: 'home' })}
     ${navItem(active, 'rooms', { title: 'My Rooms', label: 'My Rooms', icon: '<i data-lucide="door-open"></i>', panel: 'rooms' })}
-    ${navItem(active, 'games', { title: 'Games', label: 'Games', icon: '<i data-lucide="gamepad-2"></i>', panel: 'games' })}
     ${navItem(active, 'friends', { title: 'Buddies', label: 'Buddies', icon: '<i data-lucide="users"></i>', panel: 'friends' })}
     <div class="nav-item${active === 'chat' ? ' active' : ''}" id="nav-chat" onclick="navExternal('/chat')" title="Messages">
       <div class="nav-icon-wrap" style="position:relative">
