@@ -48,6 +48,7 @@ router.post('/create', auth, async (req, res) => {
         topic:       topic || 'General',
         max_members: max_members || 10,
         created_by:  req.user.id,
+        owner_id:    req.user.id,
         expires_at
       }])
       .select().single();
@@ -207,6 +208,7 @@ router.post('/request-join', auth, async (req, res) => {
     const { data, error } = await supabase
       .from('room_access_requests')
       .upsert({
+        room_id:      room.id,
         room_code:    room.code,
         requester_id: req.user.id,
         owner_id:     room.created_by,
