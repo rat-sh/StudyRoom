@@ -14,7 +14,7 @@ import roomRoutes from './routes/rooms.js';
 import lobbyRoutes from './routes/lobby.js';
 import fileRoutes from './routes/features/files.js';
 import timerRoutes from './routes/features/timer.js';
-import whiteboardRoutes from './routes/features/whiteboard.js';
+// whiteboard replaced by drawguess
 import musicRoutes from './routes/music.js';
 import userRoutes from './routes/users.js';
 import friendRoutes from './routes/friends.js';
@@ -43,7 +43,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/lobby', lobbyRoutes);
 app.use('/api/features/files', fileRoutes);
 app.use('/api/features/timer', timerRoutes);
-app.use('/api/features/whiteboard', whiteboardRoutes);
+// whiteboard replaced by drawguess
 app.use('/api/music', musicRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/friends', friendRoutes);
@@ -63,6 +63,7 @@ app.get('/room/:code', (req, res) => res.sendFile(path.join(__dirname, '../publi
 app.get('/chess', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/chess.html')));
 app.get('/chat', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/chat.html')));
 app.get('/chat/:chatId', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/chat.html')));
+app.get('/presenter/:code', (req, res) => res.sendFile(path.join(__dirname, '../public/core/pages/presenter.html')));
 
 // ── Health check endpoint (for UptimeRobot / Render keep-alive) ──
 app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));

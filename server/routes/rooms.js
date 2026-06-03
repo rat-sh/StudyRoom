@@ -1,6 +1,7 @@
 import express from 'express';
 import supabase from '../supabase.js';
 import auth from '../middleware/auth.js';
+import { getRoomUserCount } from '../socket/core.js';
 
 const router = express.Router();
 
@@ -77,6 +78,24 @@ router.post('/join-public', async (req, res) => {
     if (data.visibility !== 'public') return res.status(403).json({ error: 'This room is not public' });
     if (new Date(data.expires_at) < new Date()) return res.status(410).json({ error: 'Room expired' });
     res.json({ code: data.code, name: data.name, topic: data.topic, visibility: data.visibility });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUBLIC ACTIVE ROOMS ───────────────────────────────────────
+router.get('/public-active', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('rooms')
+      .select('code, name, topic, max_members, created_at')
+      .eq('visibility', 'public')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (error) return res.status(500).json({ error: error.message });
+    const augmentedData = (data || []).map(r => ({
+      ...r,
+      userCount: getRoomUserCount(r.code)
+    }));
+    res.json(augmentedData);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

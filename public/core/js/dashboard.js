@@ -568,6 +568,45 @@ async function loadRooms() {
   if (all.length > 0) renderRoomList('recent-rooms', all);
   else document.getElementById('recent-rooms').innerHTML =
     '<div style="font-size:13px;color:var(--muted);padding:12px 0">No rooms yet. Create or join one!</div>';
+    
+  loadPublicRooms();
+}
+
+async function loadPublicRooms() {
+  const el = document.getElementById('public-rooms');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">Loading…</div>';
+  const { ok, data } = await API.get('/api/rooms/public-active', true);
+  if (ok && data.length > 0) {
+    const populated = data.filter(r => r.userCount > 0);
+    const empty = data.filter(r => (r.userCount || 0) === 0);
+    
+    const gridStyle = "grid-column: 1 / -1; display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:12px;width:100%;";
+    let html = '';
+    if (populated.length > 0) {
+      html += `<div id="populated-rooms-container" style="${gridStyle}"></div>`;
+    }
+    if (empty.length > 0) {
+      html += `<div style="grid-column: 1 / -1;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px 4px">No one present</div>`;
+      html += `<div id="empty-rooms-container" style="${gridStyle}"></div>`;
+    }
+    el.innerHTML = html;
+    
+    if (populated.length > 0) renderRoomList('populated-rooms-container', populated, false);
+    if (empty.length > 0) renderRoomList('empty-rooms-container', empty, false);
+  } else {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0">No public rooms active right now. Create one!</div>';
+  }
+}
+
+async function findBuddyRoulette() {
+  const { ok, data } = await API.get('/api/rooms/public-active', true);
+  if (ok && data.length > 0) {
+    const r = data[Math.floor(Math.random() * data.length)];
+    window.location.href = '/room/' + r.code;
+  } else {
+    showToast('No public rooms available right now!');
+  }
 }
 
 async function loadMyRooms() {
@@ -614,12 +653,14 @@ function renderRoomList(id, rooms, showActions = true) {
       ? `<button class="room-delete-btn" onclick="event.stopPropagation();openDeleteRoom('${r.code}','${escapeHtml(r.name).replace(/'/g,"\\'")}'${isJoined ? ', true' : ''})" title="${tooltipTitle}"><i data-lucide="${deleteIcon}" style="width:14px;height:14px"></i></button>
          <button class="room-enter-btn" onclick="event.stopPropagation();window.location.href='/room/${r.code}'">Enter →</button>`
       : '';
+    const countBadge = r.userCount !== undefined ? `<span class="badge" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);display:inline-flex;align-items:center"><i data-lucide="users" style="width:12px;height:12px;margin-right:4px"></i>${r.userCount}</span>` : '';
     return `<div class="room-item" onclick="window.location.href='/room/${r.code}'">
       <div class="room-dot ${live ? 'live' : ''}"></div>
       <div class="room-item-info">
         <strong>${escapeHtml(r.name)}</strong>
         <span>${dateStr}${isJoined ? ' <span style="color:var(--accent);font-weight:600">(Joined)</span>' : ''} · <span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${r.code}</span>${r.topic ? ' · ' + escapeHtml(r.topic) : ''}</span>
       </div>
+      ${countBadge}
       ${visiBadge}
       ${live ? '<span class="badge live-badge">● Live</span>' : ''}
       ${joinAction}

@@ -441,8 +441,8 @@ async function toggleMic() {
   }
   const btn = document.getElementById('btn-mic');
   btn.innerHTML = micOn
-    ? '<i data-lucide="mic" style="width:20px;height:20px"></i><span class="ctrl-label">Mute</span>'
-    : '<i data-lucide="mic-off" style="width:20px;height:20px"></i><span class="ctrl-label">Unmute</span>';
+    ? '<i data-lucide="mic" style="width:20px;height:20px"></i><span class="ctrl-label">Mute</span><span id="mic-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>'
+    : '<i data-lucide="mic-off" style="width:20px;height:20px"></i><span class="ctrl-label">Unmute</span><span id="mic-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#ef4444;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>';
   btn.classList.toggle('off', !micOn);
   document.getElementById('self-mic-off').classList.toggle('hidden', micOn);
   socket.emit('media-state', { roomCode, video: camOn, audio: micOn });
@@ -467,7 +467,7 @@ async function toggleCam() {
     if (tileSelf) tileSelf.classList.add('cam-off');
     document.getElementById('self-avatar').style.display = 'flex';
     document.getElementById('self-name').style.display = 'block';
-    btn.innerHTML = '<i data-lucide="video-off" style="width:20px;height:20px"></i><span class="ctrl-label">Start Video</span>';
+    btn.innerHTML = '<i data-lucide="video-off" style="width:20px;height:20px"></i><span class="ctrl-label">Start Video</span><span id="cam-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#ef4444;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>';
     btn.classList.add('off');
     document.getElementById('self-cam-off')?.classList.remove('hidden');
     // ── FIX 3a: Tell peers the camera is off (track was stopped, not
@@ -484,7 +484,7 @@ async function toggleCam() {
       const s = await ensureLocalStream(true, micOn);
       if (!s) return;
       camOn = true;
-      btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span>';
+      btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span><span id="cam-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>';
       btn.classList.remove('off');
       document.getElementById('self-cam-off')?.classList.add('hidden');
       socket.emit('media-state', { roomCode, video: true, audio: micOn });
@@ -519,7 +519,7 @@ async function toggleCam() {
         if (tileSelf) tileSelf.classList.remove('cam-off');
         document.getElementById('self-avatar').style.display = 'none';
         document.getElementById('self-name').style.display = 'none';
-        btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span>';
+        btn.innerHTML = '<i data-lucide="video" style="width:20px;height:20px"></i><span class="ctrl-label">Stop Video</span><span id="cam-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>';
         btn.classList.remove('off');
         document.getElementById('self-cam-off')?.classList.add('hidden');
         socket.emit('media-state', { roomCode, video: true, audio: micOn });
@@ -1097,7 +1097,19 @@ function sendChat() {
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
   if (!message) return;
-  socket.emit('chat-message', { roomCode, message });
+  
+  if (message.startsWith('/doubt ')) {
+    const text = message.replace('/doubt ', '').trim();
+    if (text) {
+      const doubtId = 'd_' + Date.now() + Math.floor(Math.random()*1000);
+      socket.emit('focus-doubt', { roomCode, doubtId, text });
+      if (focusModeActive) {
+        appendDoubtMessage(doubtId, 'You', text, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      }
+    }
+  } else {
+    socket.emit('chat-message', { roomCode, message });
+  }
   input.value = '';
 }
 
@@ -1121,6 +1133,16 @@ function sendEmojiToChat(emoji) {
   emojiPickerOpen = false;
 }
 
+function parseRichText(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp))/gi, '<br><img src="$1" style="max-width:100%;border-radius:4px;margin-top:4px"><br>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+  html = html.replace(/`(.*?)`/g, '<code style="background:var(--bg3);padding:2px 4px;border-radius:3px;font-family:monospace">$1</code>');
+  return html;
+}
+
 socket.on('chat-message', ({ socketId, name, message, time }) => {
   const isMe = socketId === socket.id;
   const msgs = document.getElementById('chat-messages');
@@ -1129,17 +1151,18 @@ socket.on('chat-message', ({ socketId, name, message, time }) => {
   const isEmojiOnly = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\u200D)+$/u.test(message) && message.length <= 8;
   const bubbleContent = isEmojiOnly
     ? `<span class="emoji-msg">${escapeHtml(message)}</span>`
-    : escapeHtml(message);
+    : parseRichText(message);
   div.innerHTML = `<div class="msg-sender">${escapeHtml(isMe ? 'You' : name)}<span class="msg-time">${time}</span></div><div class="msg-bubble">${bubbleContent}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
-  if (!isMe && !document.getElementById('rsb-chat').classList.contains('active')) {
+  if (!isMe && !document.getElementById('rsb-chat').classList.contains('active') && !window.focusModeActive) {
     document.getElementById('tab-chat').style.color = 'var(--warning)';
     document.getElementById('tab-chat').style.fontWeight = '700';
   }
 });
 
 function appendSystemMessage(text) {
+  if (window.focusModeActive) return; // True Do Not Disturb
   const msgs = document.getElementById('chat-messages');
   const div = document.createElement('div');
   div.style.cssText = 'text-align:center;font-size:10px;color:var(--hint);padding:4px 0';
@@ -1266,11 +1289,16 @@ function toggleSidebar() {
   const btn = document.getElementById('feat-collapse-sidebar');
   if (btn) {
     btn.innerHTML = sidebarVisible
-      ? '<i data-lucide="panel-right" style="width:20px;height:20px"></i>'
-      : '<i data-lucide="panel-right-close" style="width:20px;height:20px"></i>';
-    btn.title = sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar';
+      ? '<i data-lucide="panel-right" style="width:20px;height:20px"></i><span class="ctrl-label">Hide Panel</span>'
+      : '<i data-lucide="panel-right-close" style="width:20px;height:20px"></i><span class="ctrl-label">Show Panel</span>';
+    btn.title = sidebarVisible ? 'Hide Sidebar Panel' : 'Show Sidebar Panel';
   }
   if (window.lucide) lucide.createIcons();
+}
+
+function openPeopleTab() {
+  if (!sidebarVisible) toggleSidebar();
+  setTab('people');
 }
 
 // ── TABS ───────────────────────────────────────────────────────
@@ -1288,6 +1316,7 @@ function setTab(tab) {
       msgs.scrollTop = msgs.scrollHeight;
     }, 50);
   }
+  if (window.lucide) lucide.createIcons();
 }
 
 async function loadRoomBuddies() {
@@ -1312,7 +1341,7 @@ async function loadRoomBuddies() {
 
 // ── FEATURE PANEL ──────────────────────────────────────────────
 const FEATURES = {
-  whiteboard: { title: '✏️ Whiteboard', src: '/features/whiteboard/index.html' },
+  drawguess: { title: '🎨 Draw & Guess', src: '/features/drawguess/index.html' },
   timer: { title: '⏱ Pomodoro Timer', src: '/features/timer/index.html' },
   files: { title: '📁 File Sharing', src: '/features/files/index.html' },
   games: { title: '🎮 Games', src: '/features/games/index.html' }
@@ -1482,6 +1511,9 @@ function addToPeopleList(socketId, name, isYou = false, guest = false, peerUserI
     ${guest && !isYou ? '<span class="peer-guest">Guest</span>' : ''}
     ${!isYou ? `
     <div class="peer-actions" style="margin-left:auto;display:flex;gap:4px;align-items:center">
+      <input type="range" min="0" max="1" step="0.05" value="1" title="Adjust Volume"
+             style="width:50px;height:4px;accent-color:var(--accent);cursor:pointer;margin-right:4px"
+             oninput="setPeerVolume('${socketId}', this.value)">
       <button class="peer-play-btn" title="Invite to game" onclick="openGameInviteMenu('${socketId}',event)">Play</button>
       ${canDm ? `<button class="peer-msg-btn" title="Direct message" onclick="messageBuddyFromRoom('${peerUserId}','${escapeHtml(name).replace(/'/g, "\\'")}')">Chat</button>` : ''}
     </div>
@@ -1824,9 +1856,12 @@ function closeFocusSetup() {
   document.getElementById('modal-room-focus')?.classList.remove('open');
 }
 
+let pendingGroupFocusEnd = null;
+
 function startRoomFocusMode() {
   const fileInput = document.getElementById('room-focus-file');
   const duration = parseInt(document.getElementById('room-focus-duration')?.value || '25', 10);
+  const mode = document.getElementById('room-focus-type')?.value || 'single';
   const err = document.getElementById('room-focus-err');
   if (!fileInput?.files?.length) {
     err.textContent = 'Choose a PDF to study with.';
@@ -1844,14 +1879,30 @@ function startRoomFocusMode() {
 
   if (focusBlobUrl) URL.revokeObjectURL(focusBlobUrl);
   focusBlobUrl = URL.createObjectURL(file);
-  focusSecondsLeft = duration * 60;
+  closeFocusSetup();
+
+  if (mode === 'group') {
+    const endTime = Date.now() + duration * 60000;
+    socket.emit('group-focus-invite', { roomCode, duration, endTime });
+    enterFocusMode(duration, true, endTime);
+  } else {
+    enterFocusMode(duration, false);
+  }
+}
+
+function enterFocusMode(duration, isGroup, endTime = null) {
+  focusSecondsLeft = endTime ? Math.max(0, Math.floor((endTime - Date.now())/1000)) : duration * 60;
   focusModeActive = true;
 
   document.getElementById('room-focus-pdf').src = focusBlobUrl;
   document.getElementById('room-focus-overlay')?.classList.add('active');
-  closeFocusSetup();
+  const typeBadge = document.getElementById('focus-mode-type-badge');
+  if (typeBadge) {
+    typeBadge.style.display = isGroup ? 'inline-block' : 'none';
+  }
+  startFocusPiP();
 
-  socket.emit('focus-mode-start', { roomCode, duration });
+  socket.emit('focus-mode-start', { roomCode, duration, isGroup });
   document.getElementById('focus-badge-self')?.classList.remove('hidden');
   updateRoomFocusTimerDisplay();
 
@@ -1861,6 +1912,26 @@ function startRoomFocusMode() {
     updateRoomFocusTimerDisplay();
     if (focusSecondsLeft <= 0) endRoomFocusMode(true);
   }, 1000);
+}
+
+function acceptGroupFocus() {
+  document.getElementById('modal-group-focus-invite').classList.remove('open');
+  if (!pendingGroupFocusEnd) return;
+  // Prompt for PDF first? Or just allow them to enter without PDF temporarily, they can set it later.
+  // We can let them pick a PDF instantly, but to be seamless, we'll just open a file dialog, or let them study without it.
+  // For now, let's open Focus setup but with pre-filled Group data.
+  // But wait, the prompt says "who click yes, enter the room, and study toether".
+  // If they don't have a PDF, we can just show a blank focus mode.
+  focusBlobUrl = null;
+  const durationMinutes = Math.ceil((pendingGroupFocusEnd - Date.now()) / 60000);
+  enterFocusMode(durationMinutes, true, pendingGroupFocusEnd);
+  pendingGroupFocusEnd = null;
+}
+
+function rejectGroupFocus() {
+  document.getElementById('modal-group-focus-invite').classList.remove('open');
+  pendingGroupFocusEnd = null;
+  appendSystemMessage('You declined the group focus session.');
 }
 
 function updateRoomFocusTimerDisplay() {
@@ -1884,6 +1955,7 @@ function endRoomFocusMode(completed = false) {
   document.getElementById('room-focus-overlay')?.classList.remove('active');
   socket.emit('focus-mode-end', { roomCode });
   document.getElementById('focus-badge-self')?.classList.add('hidden');
+  stopFocusPiP();
   if (completed) {
     showToast('Focus session complete — welcome back!');
     appendSystemMessage(`${user?.name || 'Someone'} finished a focus session`);
@@ -1895,6 +1967,183 @@ socket.on('peer-focus-start', ({ socketId, name }) => {
   if (badge) badge.classList.remove('hidden');
   appendSystemMessage(`${name} entered focus mode 🎯`);
 });
+
+socket.on('group-focus-invite-incoming', ({ fromName, duration, endTime }) => {
+  if (focusModeActive) return; // already in focus mode
+  pendingGroupFocusEnd = endTime;
+  document.getElementById('gfi-title').textContent = 'Group Focus Session';
+  document.getElementById('gfi-desc').textContent = `${fromName} invited you to a ${duration}m group study session.`;
+  document.getElementById('modal-group-focus-invite').classList.add('open');
+});
+
+socket.on('focus-doubt', ({ id, fromName, text, time }) => {
+  if (!focusModeActive) return; // Only show if I'm in focus mode
+  appendDoubtMessage(id, fromName, text, time);
+});
+
+socket.on('focus-answer', ({ doubtId, fromName, text, time }) => {
+  if (!focusModeActive) return;
+  appendDoubtAnswer(doubtId, fromName, text, time);
+});
+
+function appendDoubtMessage(id, fromName, text, time) {
+  const container = document.getElementById('focus-doubt-messages');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.id = 'doubt-' + id;
+  div.style.background = 'var(--bg)';
+  div.style.padding = '10px';
+  div.style.borderRadius = '8px';
+  div.style.border = '1px solid var(--border)';
+  div.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px"><strong>${fromName}</strong> • ${time}</div>
+    <div style="font-size:13px;color:var(--text);margin-bottom:8px">${text}</div>
+    <div id="answers-${id}" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;padding-left:8px;border-left:2px solid var(--accent)"></div>
+    <button onclick="replyToDoubt('${id}')" style="background:none;border:none;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;padding:0">Reply</button>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  
+  // Show badge
+  const chatUi = document.getElementById('focus-doubt-chat');
+  if (chatUi.style.display === 'none') {
+    const badge = document.getElementById('doubt-badge');
+    badge.style.display = 'inline-block';
+    badge.textContent = parseInt(badge.textContent || '0') + 1;
+  }
+}
+
+function appendDoubtAnswer(doubtId, fromName, text, time) {
+  const answersContainer = document.getElementById('answers-' + doubtId);
+  if (!answersContainer) return;
+  const div = document.createElement('div');
+  div.style.fontSize = '12px';
+  div.style.color = 'var(--text)';
+  div.innerHTML = `<span style="font-weight:600;color:var(--muted)">${fromName}:</span> ${text}`;
+  answersContainer.appendChild(div);
+  
+  const container = document.getElementById('focus-doubt-messages');
+  container.scrollTop = container.scrollHeight;
+}
+
+function replyToDoubt(doubtId) {
+  const input = document.getElementById('focus-doubt-input');
+  input.value = `/answer ${doubtId} `;
+  input.focus();
+}
+
+function sendFocusDoubt() {
+  const input = document.getElementById('focus-doubt-input');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  if (message.startsWith('/audio')) {
+    toggleFocusAudio();
+    return;
+  }
+  
+  if (message.startsWith('/answer ')) {
+    const parts = message.split(' ');
+    const doubtId = parts[1];
+    const text = parts.slice(2).join(' ').trim();
+    if (doubtId && text) {
+      socket.emit('focus-answer', { roomCode, doubtId, text });
+      appendDoubtAnswer(doubtId, 'You', text, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  } else if (message.startsWith('/doubt ')) {
+    const text = message.replace('/doubt ', '').trim();
+    if (text) {
+      const doubtId = 'd_' + Date.now() + Math.floor(Math.random()*1000);
+      socket.emit('focus-doubt', { roomCode, doubtId, text });
+      appendDoubtMessage(doubtId, 'You', text, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  } else {
+    // default to doubt
+    const doubtId = 'd_' + Date.now() + Math.floor(Math.random()*1000);
+    socket.emit('focus-doubt', { roomCode, doubtId, text: message });
+    appendDoubtMessage(doubtId, 'You', message, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  }
+  input.value = '';
+}
+
+let focusAudioRecorder = null;
+let focusAudioChunks = [];
+let focusAudioTimer = null;
+let focusAudioSeconds = 0;
+
+async function toggleFocusAudio() {
+  const inputStr = document.getElementById('focus-doubt-input').value.trim();
+  let doubtId = null;
+  if (inputStr.startsWith('/answer ')) {
+    doubtId = inputStr.split(' ')[1];
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    focusAudioRecorder = new MediaRecorder(stream);
+    focusAudioChunks = [];
+    
+    focusAudioRecorder.ondataavailable = e => {
+      if (e.data.size > 0) focusAudioChunks.push(e.data);
+    };
+    
+    focusAudioRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(focusAudioTimer);
+    };
+    
+    focusAudioRecorder.doubtId = doubtId; // save target
+    focusAudioRecorder.start();
+    
+    document.getElementById('focus-doubt-input-area').style.display = 'none';
+    document.getElementById('focus-audio-banner').style.display = 'flex';
+    focusAudioSeconds = 0;
+    document.getElementById('focus-audio-timer').textContent = 'Recording... 0:00';
+    
+    focusAudioTimer = setInterval(() => {
+      focusAudioSeconds++;
+      const m = Math.floor(focusAudioSeconds / 60);
+      const s = (focusAudioSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('focus-audio-timer').textContent = `Recording... ${m}:${s}`;
+    }, 1000);
+    
+  } catch (err) {
+    showToast('Could not access microphone');
+  }
+}
+
+function stopFocusAudio(send) {
+  if (!focusAudioRecorder) return;
+  const targetDoubtId = focusAudioRecorder.doubtId;
+  
+  if (send) {
+    focusAudioRecorder.onstop = () => {
+      clearInterval(focusAudioTimer);
+      const blob = new Blob(focusAudioChunks, { type: 'audio/webm' });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Audio = reader.result;
+        const text = `<audio controls src="${base64Audio}" style="height:30px;width:200px;border-radius:15px"></audio>`;
+        if (targetDoubtId) {
+          socket.emit('focus-answer', { roomCode, doubtId: targetDoubtId, text });
+          appendDoubtAnswer(targetDoubtId, 'You (Voice)', text, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } else {
+          const newDoubtId = 'd_' + Date.now() + Math.floor(Math.random()*1000);
+          socket.emit('focus-doubt', { roomCode, doubtId: newDoubtId, text });
+          appendDoubtMessage(newDoubtId, 'You (Voice)', text, new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      };
+      reader.readAsDataURL(blob);
+    };
+  } else {
+    focusAudioRecorder.onstop = () => clearInterval(focusAudioTimer);
+  }
+  
+  focusAudioRecorder.stop();
+  document.getElementById('focus-audio-banner').style.display = 'none';
+  document.getElementById('focus-doubt-input-area').style.display = 'flex';
+  document.getElementById('focus-doubt-input').value = '';
+}
 
 socket.on('peer-focus-end', ({ socketId, name }) => {
   const badge = document.getElementById('focus-badge-' + socketId);
@@ -2012,3 +2261,118 @@ function startActiveSpeakerMonitor() {
   }, 500);
 }
 startActiveSpeakerMonitor();
+
+// ── PHASE 1 SUPERCHARGE FEATURES ──────────────────────────────
+let pipVideoElement = null;
+
+async function startFocusPiP() {
+  if (!document.pictureInPictureEnabled) return;
+  let targetVidId = null;
+  if (typeof pinnedSocketId !== 'undefined' && pinnedSocketId && pinnedSocketId !== 'self') {
+    targetVidId = 'vid-' + pinnedSocketId;
+  } else if (activeSpeakerId && activeSpeakerId !== 'self') {
+    targetVidId = 'vid-' + activeSpeakerId;
+  } else {
+    const peerIds = Object.keys(peers || {});
+    if (peerIds.length > 0) targetVidId = 'vid-' + peerIds[0];
+  }
+  
+  const targetVid = targetVidId ? document.getElementById(targetVidId) : null;
+  if (targetVid) {
+    try {
+      pipVideoElement = targetVid;
+      await pipVideoElement.requestPictureInPicture();
+    } catch (e) { console.warn('PiP failed', e); }
+  }
+}
+
+function stopFocusPiP() {
+  if (document.pictureInPictureElement) {
+    document.exitPictureInPicture().catch(() => {});
+  }
+  pipVideoElement = null;
+}
+
+window.setPeerVolume = function(socketId, vol) {
+  const vid = document.getElementById('vid-' + socketId);
+  if (vid) vid.volume = parseFloat(vol);
+};
+
+let _pttActive = false;
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.repeat) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    if (typeof micOn !== 'undefined' && !micOn) {
+      _pttActive = true;
+      toggleMic();
+    }
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (_pttActive && typeof micOn !== 'undefined' && micOn) {
+      _pttActive = false;
+      toggleMic();
+    }
+  }
+});
+
+// ── NOTES & TODOS ──────────────────────────────────────────────
+let sharedTodos = [];
+
+window.handleNotesInput = function(val) {
+  socket.emit('notes-update', { roomCode, notes: val });
+};
+
+socket.on('notes-update', (notes) => {
+  const el = document.getElementById('shared-notes');
+  if (el && el.value !== notes) {
+    el.value = notes;
+  }
+});
+
+function renderTodos() {
+  const list = document.getElementById('todo-list');
+  if (!list) return;
+  list.innerHTML = sharedTodos.map((t, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:6px">
+      <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo(${i}, this.checked)" style="accent-color:var(--accent);cursor:pointer">
+      <span style="flex:1;font-size:12px;color:var(--text);${t.done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${escapeHtml(t.text)}</span>
+      <button onclick="deleteTodo(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 4px;line-height:1">×</button>
+    </div>
+  `).join('');
+}
+
+window.addTodo = function() {
+  const input = document.getElementById('todo-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  sharedTodos.push({ text, done: false });
+  input.value = '';
+  renderTodos();
+  socket.emit('todos-update', { roomCode, todos: sharedTodos });
+};
+
+window.toggleTodo = function(idx, done) {
+  if (sharedTodos[idx]) {
+    sharedTodos[idx].done = done;
+    renderTodos();
+    socket.emit('todos-update', { roomCode, todos: sharedTodos });
+  }
+};
+
+window.deleteTodo = function(idx) {
+  sharedTodos.splice(idx, 1);
+  renderTodos();
+  socket.emit('todos-update', { roomCode, todos: sharedTodos });
+};
+
+socket.on('todos-update', (todos) => {
+  sharedTodos = todos || [];
+  renderTodos();
+});

@@ -32,6 +32,7 @@ const API = {
 };
 
 function showToast(msg, duration = 2500) {
+  if (window.focusModeActive) return; // True Do Not Disturb
   const t = document.getElementById('toast');
   if (!t) return;
   

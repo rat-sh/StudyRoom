@@ -1,18 +1,20 @@
-import whiteboardHandler from './features/whiteboard.js';
 import timerHandler from './features/timer.js';
 import reactionsHandler from './features/reactions.js';
 import musicHandler from './features/music.js';
 import gamesHandler from './features/games.js';
 import chatSocketHandler from './features/chat.js';
 import chessHandler from './features/chess.js';
+import drawguessHandler from './features/drawguess.js';
 import { logActivity } from '../routes/activity.js';
 
 const rooms = new Map();
 // Track join time per socket so we can compute session duration on disconnect
 const joinTime = new Map();
 
+export const getRoomUserCount = (code) => rooms.has(code) ? rooms.get(code).users.size : 0;
+
 export function setupCoreHandlers(io) {
-  whiteboardHandler(io, rooms);
+  drawguessHandler(io, rooms);
   timerHandler(io, rooms);
   reactionsHandler(io, rooms);
   musicHandler(io, rooms);
@@ -36,7 +38,7 @@ export function setupCoreHandlers(io) {
       // ── Personal room so server can target this user directly ──
       if (user?.id) socket.join(`user:${user.id}`);
 
-      if (!rooms.has(roomCode)) rooms.set(roomCode, { users: new Map(), ownerSocketId: socket.id });
+      if (!rooms.has(roomCode)) rooms.set(roomCode, { users: new Map(), ownerSocketId: socket.id, notes: '', todos: [] });
       rooms.get(roomCode).users.set(socket.id, { name: user.name, id: user.id || null, guest: user.guest || false });
       socket.data = { roomCode, user };
       joinTime.set(socket.id, Date.now());
@@ -50,6 +52,11 @@ export function setupCoreHandlers(io) {
       });
       socket.emit('room-peers', peers);
       io.to(roomCode).emit('room-count', rooms.get(roomCode).users.size);
+      
+      // Sync notes and todos for late joiners
+      const room = rooms.get(roomCode);
+      if (room.notes) socket.emit('notes-update', room.notes);
+      if (room.todos && room.todos.length) socket.emit('todos-update', room.todos);
     });
 
     // ── Dashboard personal room join (users not in a room) ────────
@@ -85,6 +92,22 @@ export function setupCoreHandlers(io) {
       });
     });
 
+    socket.on('notes-update', ({ roomCode, notes }) => {
+      const room = rooms.get(roomCode);
+      if (room) {
+        room.notes = notes;
+        socket.to(roomCode).emit('notes-update', notes);
+      }
+    });
+
+    socket.on('todos-update', ({ roomCode, todos }) => {
+      const room = rooms.get(roomCode);
+      if (room) {
+        room.todos = todos;
+        socket.to(roomCode).emit('todos-update', todos);
+      }
+    });
+
     socket.on('media-state', ({ roomCode, video, audio }) => {
       socket.to(roomCode).emit('peer-media-state', { socketId: socket.id, video, audio });
     });
@@ -93,6 +116,34 @@ export function setupCoreHandlers(io) {
       socket.to(roomCode).emit('peer-focus-start', {
         socketId: socket.id,
         name: socket.data?.user?.name || 'Someone',
+      });
+    });
+
+    socket.on('group-focus-invite', ({ roomCode, duration, endTime }) => {
+      socket.to(roomCode).emit('group-focus-invite-incoming', {
+        fromName: socket.data?.user?.name || 'Someone',
+        duration,
+        endTime
+      });
+    });
+
+    socket.on('focus-doubt', ({ roomCode, doubtId, text }) => {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      socket.to(roomCode).emit('focus-doubt', {
+        id: doubtId,
+        fromName: socket.data?.user?.name || 'Someone',
+        text,
+        time
+      });
+    });
+
+    socket.on('focus-answer', ({ roomCode, doubtId, text }) => {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      socket.to(roomCode).emit('focus-answer', {
+        doubtId,
+        fromName: socket.data?.user?.name || 'Someone',
+        text,
+        time
       });
     });
 
@@ -206,6 +257,31 @@ export function setupCoreHandlers(io) {
       const count = rooms.get(roomCode).users.size;
       io.to(roomCode).emit('room-count', count);
       if (count === 0) rooms.delete(roomCode);
+    });
+
+    // ── PRESENTER / DEVICE CAST ─────────────────────────────────────
+    socket.on('presenter-join', ({ roomCode }) => {
+      socket.join(roomCode + ':presenter');
+      // Send current participants list
+      if (rooms.has(roomCode)) {
+        const participants = [];
+        rooms.get(roomCode).users.forEach((u) => participants.push({ name: u.name }));
+        socket.emit('room-participants', participants);
+      }
+    });
+
+    socket.on('presenter-live', ({ roomCode, hasVideo, hasAudio }) => {
+      // Notify room that a device is presenting
+      socket.to(roomCode).emit('presenter-started', {
+        socketId: socket.id,
+        hasVideo,
+        hasAudio,
+        name: socket.data?.user?.name || 'Presenter'
+      });
+    });
+
+    socket.on('presenter-stop', ({ roomCode }) => {
+      socket.to(roomCode).emit('presenter-stopped', { socketId: socket.id });
     });
   });
 }

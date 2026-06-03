@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draw & Guess</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #16161e;
+      --surface2: #1e1e2a;
+      --surface3: #252535;
+      --border: rgba(255,255,255,0.07);
+      --border-strong: rgba(255,255,255,0.12);
+      --text: #e8e8f0;
+      --text-muted: #7878a0;
+      --text-dim: #4a4a6a;
+      --accent: #7c6dfa;
+      --accent-glow: rgba(124,109,250,0.2);
+      --accent-light: #a594ff;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+      --canvas-bg: #ffffff;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-rows: 52px 1fr 48px;
+      grid-template-columns: 220px 1fr 280px;
+      grid-template-areas:
+        "header header header"
+        "sidebar canvas info"
+        "sidebar chat-bar chat-bar";
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── HEADER ─────────────────────────────────────── */
+    .header {
+      grid-area: header;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo {
+      font-weight: 800;
+      font-size: 15px;
+      background: linear-gradient(135deg, var(--accent-light), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.3px;
+    }
+    .header-divider { width: 1px; height: 20px; background: var(--border-strong); }
+    .header-room { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .header-badge {
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--surface3);
+      border: 1px solid var(--border-strong);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-light);
+      letter-spacing: 0.5px;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: var(--radius-sm);
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .header-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border-strong); }
+    .header-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .header-btn.primary:hover { background: var(--accent-light); }
+    .header-btn.danger { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: var(--danger); }
+    .header-btn.danger:hover { background: var(--danger); color: #fff; }
+
+    /* ── LEFT SIDEBAR ───────────────────────────────── */
+    .sidebar {
+      grid-area: sidebar;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .sidebar-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-dim);
+    }
+    .participant-count {
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      color: var(--accent-light);
+      font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px;
+    }
+    .participants-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .participant-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: var(--radius-sm);
+      transition: background 0.15s; position: relative;
+    }
+    .participant-item:hover { background: var(--surface2); }
+    .participant-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 12px; color: #fff; flex-shrink: 0;
+      position: relative;
+    }
+    .participant-avatar::after {
+      content: ''; position: absolute; bottom: 0; right: 0;
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--success); border: 2px solid var(--surface);
+    }
+    .participant-info { flex: 1; min-width: 0; }
+    .participant-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .participant-role { font-size: 10px; color: var(--text-muted); }
+    .badge-host {
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+      background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.3);
+    }
+    .badge-drawing {
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+      background: rgba(124,109,250,0.15); color: var(--accent-light); border: 1px solid rgba(124,109,250,0.3);
+    }
+    .badge-guessed {
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px;
+      background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3);
+    }
+
+    /* ── CANVAS AREA ────────────────────────────────── */
+    .canvas-area {
+      grid-area: canvas;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* word display banner */
+    .word-banner {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: center;
+      padding: 10px 20px;
+      background: linear-gradient(180deg, rgba(15,15,19,0.95) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    .word-display {
+      font-size: 22px; font-weight: 800; letter-spacing: 6px;
+      color: var(--text); text-transform: uppercase;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+    .word-display.drawing {
+      background: linear-gradient(135deg, var(--accent-light), #f0abff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* canvas wrapper */
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 50px 12px 12px;
+    }
+    #dg-canvas {
+      border-radius: var(--radius);
+      box-shadow: var(--shadow), 0 0 0 1px var(--border);
+      background: var(--canvas-bg);
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    /* waiting state */
+    .waiting-state {
+      position: absolute; inset: 50px 0 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; pointer-events: none;
+    }
+    .waiting-icon {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--surface2); border: 2px dashed var(--border-strong);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-dim);
+    }
+    .waiting-state h3 { font-size: 20px; color: var(--text-muted); font-weight: 600; }
+    .waiting-state p { font-size: 13px; color: var(--text-dim); text-align: center; max-width: 260px; line-height: 1.5; }
+    .start-btn {
+      pointer-events: all;
+      padding: 12px 28px; border-radius: var(--radius); border: none;
+      background: var(--accent); color: #fff; font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: all 0.2s; font-family: inherit;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+    .start-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px var(--accent-glow); background: var(--accent-light); }
+
+    /* ── TOOLBAR ────────────────────────────────────── */
+    .toolbar {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 4px;
+      background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: 40px; padding: 6px 10px;
+      box-shadow: var(--shadow);
+      z-index: 10; display: none;
+    }
+    .tool-btn {
+      width: 36px; height: 36px; border-radius: 50%; border: none;
+      background: transparent; color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s; position: relative;
+    }
+    .tool-btn:hover { background: var(--surface2); color: var(--text); }
+    .tool-btn.active { background: var(--accent-glow); color: var(--accent-light); }
+    .tool-sep { width: 1px; height: 24px; background: var(--border-strong); margin: 0 2px; }
+    .color-picker-btn {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border-strong);
+      cursor: pointer; overflow: hidden; padding: 0; flex-shrink: 0;
+    }
+    .color-picker-btn::-webkit-color-swatch-wrapper { padding: 0; }
+    .color-picker-btn::-webkit-color-swatch { border: none; border-radius: 50%; }
+    .size-slider {
+      width: 80px; accent-color: var(--accent);
+      cursor: pointer; background: transparent; height: 4px;
+    }
+
+    /* ── RIGHT INFO PANEL ───────────────────────────── */
+    .info-panel {
+      grid-area: info;
+      display: flex; flex-direction: column;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    /* Game status card */
+    .game-status {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(124,109,250,0.06) 0%, transparent 100%);
+    }
+    .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .status-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); }
+    .round-badge {
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      background: var(--surface3); color: var(--text-muted);
+    }
+
+    /* timer ring */
+    .timer-container { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .timer-ring {
+      position: relative; width: 52px; height: 52px; flex-shrink: 0;
+    }
+    .timer-ring svg { transform: rotate(-90deg); }
+    .timer-ring circle { fill: none; stroke-linecap: round; }
+    .timer-track { stroke: var(--surface3); stroke-width: 4; }
+    .timer-fill { stroke: var(--accent); stroke-width: 4; transition: stroke-dashoffset 1s linear; }
+    .timer-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 800; color: var(--text);
+    }
+    .timer-info { flex: 1; }
+    .timer-status { font-size: 13px; font-weight: 600; color: var(--text); }
+    .timer-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* word hint */
+    .word-hint {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm);
+      background: var(--surface2); border: 1px solid var(--border);
+    }
+    .hint-chars {
+      font-size: 16px; font-weight: 700; letter-spacing: 6px; color: var(--text);
+      font-family: monospace;
+    }
+    .hint-length { font-size: 11px; color: var(--text-muted); }
+
+    /* leaderboard */
+    .leaderboard { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .leaderboard-header {
+      padding: 12px 16px 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .leaderboard-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .lb-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: var(--radius-sm);
+      transition: background 0.15s; margin-bottom: 3px;
+    }
+    .lb-item:hover { background: var(--surface2); }
+    .lb-rank {
+      width: 20px; font-size: 12px; font-weight: 800;
+      color: var(--text-dim); text-align: center; flex-shrink: 0;
+    }
+    .lb-rank.top1 { color: #fbbf24; }
+    .lb-rank.top2 { color: #94a3b8; }
+    .lb-rank.top3 { color: #b45309; }
+    .lb-avatar {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+    }
+    .lb-name { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-score { font-size: 12px; font-weight: 700; color: var(--accent-light); }
+    .lb-guessed-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+    /* ── BOTTOM CHAT ────────────────────────────────── */
+    .chat-bar {
+      grid-area: chat-bar;
+      display: flex; align-items: center; gap: 0;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 0;
+    }
+    .chat-messages-strip {
+      flex: 1; display: flex; align-items: center;
+      gap: 12px; padding: 0 16px; overflow-x: hidden;
+      font-size: 12px; height: 100%; overflow: hidden;
+    }
+    .chat-msg {
+      display: flex; gap: 6px; align-items: baseline;
+      white-space: nowrap; animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .chat-msg .who { font-weight: 700; color: var(--accent-light); }
+    .chat-msg .text { color: var(--text-muted); }
+    .chat-msg.system { color: var(--success); font-weight: 600; }
+    .chat-msg.system .who { display: none; }
+
+    .chat-input-wrap {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-left: 1px solid var(--border);
+      width: 340px; flex-shrink: 0;
+    }
+    #dg-guess-input {
+      flex: 1; padding: 8px 14px; border-radius: 20px;
+      border: 1px solid var(--border-strong); background: var(--surface2);
+      color: var(--text); font-size: 13px; outline: none; font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    #dg-guess-input:focus { border-color: var(--accent); }
+    #dg-guess-input::placeholder { color: var(--text-dim); }
+    .send-btn {
+      width: 34px; height: 34px; border-radius: 50%; border: none;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+    }
+    .send-btn:hover { background: var(--accent-light); transform: scale(1.05); }
+
+    /* ── SCROLLBARS ──────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+    /* ── FLOATING VIDEOS ────────────────────────────── */
+    .floating-videos {
+      position: fixed; bottom: 64px; right: 292px;
+      display: flex; flex-direction: column; gap: 6px;
+      z-index: 20; pointer-events: none;
+    }
+
+    /* ── CORRECT GUESS TOAST ─────────────────────────── */
+    .correct-toast {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0);
+      background: var(--success); color: #fff;
+      padding: 16px 32px; border-radius: var(--radius-lg);
+      font-size: 20px; font-weight: 800;
+      box-shadow: 0 8px 32px rgba(34,197,94,0.4);
+      z-index: 100; pointer-events: none;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+      opacity: 0;
+    }
+    .correct-toast.show { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+
+    /* ── RESPONSIVE ─────────────────────────────────── */
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 0 1fr 0;
+        grid-template-areas: "header header header" "sidebar canvas info" "sidebar chat-bar chat-bar";
+      }
+      .sidebar, .info-panel { display: none; }
+    }
+    @media (max-width: 600px) {
+      .app {
+        grid-template-rows: 48px 1fr auto 48px;
+        grid-template-columns: 1fr;
+        grid-template-areas: "header" "canvas" "info" "chat-bar";
+      }
+    }
+
+    .chat-scroll { max-height: 100%; overflow: hidden; display: flex; gap: 10px; }
+
+    .empty-lb {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 24px 16px; color: var(--text-dim);
+    }
+    .empty-lb svg { opacity: 0.3; }
+    .empty-lb p { font-size: 12px; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─ HEADER ─────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <span class="header-logo">🎨 Draw & Guess</span>
+      <div class="header-divider"></div>
+      <span class="header-room" id="hdr-room-name">Loading...</span>
+      <span class="header-badge" id="hdr-room-code">----</span>
+    </div>
+    <div class="header-right">
+      <span style="font-size:12px;color:var(--text-muted)" id="hdr-online"><i data-lucide="users" style="width:13px;height:13px;vertical-align:-2px"></i> 1 online</span>
+      <button class="header-btn primary" onclick="dgStartRound()">
+        <i data-lucide="play" style="width:13px;height:13px"></i> Start Round
+      </button>
+      <button class="header-btn danger" onclick="window.parent.closeFeature && window.parent.closeFeature()">
+        <i data-lucide="x" style="width:13px;height:13px"></i> Close
+      </button>
+    </div>
+  </header>
+
+  <!-- ─ LEFT SIDEBAR ───────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Players</span>
+      <span class="participant-count" id="p-count">1</span>
+    </div>
+    <div class="participants-list" id="participants-list">
+      <div class="empty-lb" style="padding:16px">
+        <p>Waiting for players...</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─ CANVAS AREA ────────────────────────── -->
+  <main class="canvas-area">
+    <!-- Word Banner -->
+    <div class="word-banner">
+      <div class="word-display" id="word-banner-text">Waiting to Start</div>
+    </div>
+
+    <!-- Canvas Wrapper -->
+    <div class="canvas-wrapper" id="canvas-wrapper">
+      <canvas id="dg-canvas"></canvas>
+
+      <!-- Waiting state overlay -->
+      <div class="waiting-state" id="waiting-state">
+        <div class="waiting-icon">
+          <i data-lucide="pen-tool" style="width:36px;height:36px"></i>
+        </div>
+        <h3>Ready to Play?</h3>
+        <p>Hit <strong>Start Round</strong> to begin. A random player will be chosen to draw!</p>
+        <button class="start-btn" onclick="dgStartRound()">
+          <i data-lucide="play" style="width:16px;height:16px;vertical-align:-2px"></i>
+          Start Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Drawing Toolbar -->
+    <div class="toolbar" id="dg-toolbar">
+      <!-- Tools -->
+      <button class="tool-btn active" id="tool-pencil" onclick="setTool('pencil')" title="Pencil">
+        <i data-lucide="pen-line" style="width:16px;height:16px"></i>
+      </button>
+      <button class="tool-btn" id="tool-brush" onclick="setTool('brush')" title="Brush">
+        <i data-lucide="paintbrush" style="width:16px;height:16px"></i>
+      </button>
+      <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">
+        <i data-lucide="eraser" style="width:16px;height:16px"></i>
+      </button>
+      <div class="tool-sep"></div>
+      <!-- Color -->
+      <input type="color" id="dg-color" value="#000000" class="color-picker-btn" title="Color">
+      <!-- Size -->
+      <input type="range" id="dg-size" min="1" max="30" value="5" class="size-slider" title="Brush Size">
+      <div class="tool-sep"></div>
+      <!-- Undo/Redo/Clear -->
+      <button class="tool-btn" onclick="dgUndo()" title="Undo"><i data-lucide="undo-2" style="width:16px;height:16px"></i></button>
+      <button class="tool-btn" onclick="dgRedo()" title="Redo"><i data-lucide="redo-2" style="width:16px;height:16px"></i></button>
+      <button class="tool-btn" onclick="dgClearCanvas()" title="Clear Board" style="color:var(--danger)">
+        <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+      </button>
+    </div>
+  </main>
+
+  <!-- ─ RIGHT INFO PANEL ───────────────────── -->
+  <aside class="info-panel">
+    <!-- Game Status -->
+    <div class="game-status">
+      <div class="status-row">
+        <span class="status-label">Game Status</span>
+        <span class="round-badge" id="round-badge">Round 1</span>
+      </div>
+
+      <!-- Timer -->
+      <div class="timer-container">
+        <div class="timer-ring">
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle class="timer-track" cx="26" cy="26" r="22"/>
+            <circle class="timer-fill" id="timer-ring-fill" cx="26" cy="26" r="22"
+              stroke-dasharray="138.2" stroke-dashoffset="0"/>
+          </svg>
+          <div class="timer-text" id="timer-num">60</div>
+        </div>
+        <div class="timer-info">
+          <div class="timer-status" id="timer-status">Waiting</div>
+          <div class="timer-sub" id="timer-sub">Press Start Round to begin</div>
+        </div>
+      </div>
+
+      <!-- Word Hint -->
+      <div class="word-hint" id="word-hint">
+        <span class="hint-chars" id="hint-chars">—</span>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="leaderboard">
+      <div class="leaderboard-header">
+        <span class="sidebar-title">Leaderboard</span>
+        <i data-lucide="trophy" style="width:14px;height:14px;color:var(--warning)"></i>
+      </div>
+      <div class="leaderboard-list" id="dg-score-list">
+        <div class="empty-lb">
+          <i data-lucide="trophy" style="width:32px;height:32px"></i>
+          <p>Scores will appear<br>once the game starts</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─ BOTTOM CHAT BAR ────────────────────── -->
+  <div class="chat-bar">
+    <div class="chat-messages-strip" id="chat-strip"></div>
+    <div class="chat-input-wrap">
+      <input type="text" id="dg-guess-input" placeholder="Type your guess…" autocomplete="off"
+        onkeypress="if(event.key==='Enter') dgSendGuess()">
+      <button class="send-btn" onclick="dgSendGuess()">
+        <i data-lucide="send" style="width:14px;height:14px"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Correct Guess Toast -->
+<div class="correct-toast" id="correct-toast">✅ Correct!</div>
+
+<script src="drawguess.js"></script>
+</body>
+</html>

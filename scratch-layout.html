@@ -1,0 +1,131 @@
+  <!-- BODY: New Workspace Layout -->
+  <div class="room-body dark-workspace">
+    <!-- LEFT SIDEBAR (Timer & Focus) -->
+    <div class="left-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-course">
+          <i data-lucide="book-open" style="width:16px;height:16px"></i>
+          <div>
+            <div style="font-weight:600;color:#fff;font-size:13px">Python</div>
+            <div style="font-size:11px;color:var(--muted)">finish numpy, pandas</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="timer-mode-toggles">
+        <button class="timer-toggle active">Focus</button>
+        <button class="timer-toggle">Break</button>
+      </div>
+      
+      <div class="circular-timer-container">
+        <svg class="timer-ring" viewBox="0 0 100 100">
+          <circle class="timer-ring-bg" cx="50" cy="50" r="45"></circle>
+          <circle class="timer-ring-path" cx="50" cy="50" r="45"></circle>
+        </svg>
+        <div class="timer-display">
+          <div class="time-text">50:00</div>
+          <div class="time-status">Ready</div>
+        </div>
+      </div>
+      
+      <div class="timer-controls">
+        <button class="btn-icon"><i data-lucide="rotate-ccw"></i></button>
+        <button class="btn-play"><i data-lucide="play" style="fill:#fff"></i></button>
+        <button class="btn-icon"><i data-lucide="skip-forward"></i></button>
+      </div>
+      
+      <div class="sidebar-bottom-actions">
+        <div class="action-grid">
+          <button class="action-btn"><span class="val accent">50m</span><span class="lbl">Focus</span></button>
+          <button class="action-btn"><span class="val success">5m</span><span class="lbl">Break</span></button>
+          <button class="action-btn"><span class="val">Live</span><span class="lbl">Sync</span></button>
+        </div>
+        <button class="btn-focus-mode"><i data-lucide="target" style="width:14px;height:14px"></i> Focus Mode</button>
+      </div>
+    </div>
+
+    <!-- MAIN WORKSPACE -->
+    <div class="main-workspace">
+      <!-- VIDEO STRIP (Top) -->
+      <div class="video-strip" id="video-area">
+        <div class="video-grid" id="video-grid" data-peers="1">
+          <div class="video-tile you" id="tile-self">
+            <video id="local-video" autoplay muted playsinline></video>
+            <div class="tile-avatar" id="self-avatar">?</div>
+            <div class="tile-name" id="self-name">You</div>
+            <div class="tile-you-tag">You</div>
+            <div class="hand-badge">✋</div>
+            <div class="tile-mic-off hidden" id="self-mic-off"><i data-lucide="mic-off" style="width:14px;height:14px"></i></div>
+            <div class="tile-cam-off hidden" id="self-cam-off"><i data-lucide="video-off" style="width:14px;height:14px"></i></div>
+            <button class="tile-pin-btn" title="Pin / Spotlight" onclick="pinTile('self')">
+              <i data-lucide="pin" style="width:13px;height:13px"></i>
+            </button>
+          </div>
+        </div>
+        <div class="cursor-overlay" id="cursor-overlay"></div>
+      </div>
+
+      <!-- WORKSPACE TABS -->
+      <div class="workspace-tabs rsb-tabs">
+        <div class="rsb-tab active" id="tab-notes" onclick="setTab('notes')"><i data-lucide="file-text" style="width:14px;height:14px"></i> Notes</div>
+        <div class="rsb-tab" id="tab-chat" onclick="setTab('chat')"><i data-lucide="message-square" style="width:14px;height:14px"></i> Chat</div>
+        <div class="rsb-tab" id="tab-people" onclick="setTab('people')"><i data-lucide="users" style="width:14px;height:14px"></i> Members</div>
+        <div class="rsb-tab" id="tab-music" onclick="setTab('music')"><i data-lucide="music" style="width:14px;height:14px"></i> Music</div>
+        <div class="rsb-tab" id="tab-draw" onclick="openDrawAndGuess()"><i data-lucide="pen-tool" style="width:14px;height:14px"></i> Draw & Guess</div>
+      </div>
+
+      <!-- WORKSPACE PANELS -->
+      <div class="workspace-panels">
+        <!-- NOTES PANEL -->
+        <div class="rsb-panel active" id="rsb-notes" style="flex-direction:column;height:100%;overflow:hidden">
+          <textarea id="shared-notes" placeholder="Type collaborative notes here... everyone in the room will see this in real-time." 
+                    style="flex:1;border:none;resize:none;padding:24px;background:var(--bg);color:var(--text);font-size:14px;outline:none;font-family:var(--mono);line-height:1.6"
+                    oninput="handleNotesInput(this.value)"></textarea>
+        </div>
+
+        <!-- CHAT PANEL -->
+        <div class="rsb-panel" id="rsb-chat">
+          <div class="chat-panel" style="max-width:800px;margin:0 auto;width:100%">
+            <div class="chat-buddies-strip" id="chat-buddies-strip" style="display:none;padding:8px 10px;border-bottom:1px solid var(--border);max-height:72px;overflow-y:auto"></div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input-row" style="background:var(--bg2);border-radius:12px;margin:12px">
+              <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
+              <input type="text" class="chat-input" id="chat-input" placeholder="Type a message..." maxlength="300" style="background:transparent;color:#fff"/>
+              <button class="chat-send" onclick="sendChat()" title="Send"><i data-lucide="arrow-up" style="width:16px;height:16px"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PEOPLE PANEL -->
+        <div class="rsb-panel" id="rsb-people">
+          <div class="people-panel" id="people-list" style="max-width:600px;margin:0 auto;width:100%"></div>
+        </div>
+
+        <!-- MUSIC PANEL -->
+        <div class="rsb-panel" id="rsb-music">
+          <div class="chat-panel" style="max-width:800px;margin:0 auto;width:100%">
+            <div class="chat-messages" id="music-messages"></div>
+            <div class="chat-input-row" style="background:var(--bg2);border-radius:12px;margin:12px">
+              <input type="text" class="chat-input" id="music-input" placeholder="Search a song or use /commands..." maxlength="300" onkeypress="if(event.key==='Enter') sendMusicCommand()" style="background:transparent;color:#fff"/>
+              <button class="chat-send" onclick="sendMusicCommand()" title="Send"><i data-lucide="play" style="width:16px;height:16px"></i></button>
+            </div>
+            <div class="chat-bot-hint">
+              🎵 Commands: <code>/play</code> <code>/pause</code> <code>/resume</code> <code>/skip</code> <code>/queue</code> <code>/flush</code>
+            </div>
+          </div>
+        </div>
+        
+        <!-- FEATURE / DRAW PANEL -->
+        <div class="rsb-panel" id="rsb-feature" style="position:relative;display:none;flex-direction:column;height:100%;overflow:hidden">
+          <div class="feat-panel-wrap open" id="feat-panel-wrap" style="width:100%;height:100%;border:none;display:flex;flex-direction:column">
+            <div class="feat-panel-header" style="display:none">
+              <span id="feat-panel-title">Feature</span>
+              <button class="feat-close" onclick="closeFeature()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+            </div>
+            <div class="feat-panel-body" id="feat-panel-body" style="flex:1;background:var(--bg)"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- /room-body -->

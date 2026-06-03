@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/core/css/base.css"/>
 <link rel="stylesheet" href="/core/css/room.css"/>
 <link rel="stylesheet" href="/features/music/music-bot.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous" defer></script>
 </head>
 <body>
 <div class="room-page" id="room-page">
@@ -84,7 +85,9 @@
       <div class="rsb-tabs">
         <div class="rsb-tab active" id="tab-people" onclick="setTab('people')"><i data-lucide="users" style="width:14px;height:14px"></i> People</div>
         <div class="rsb-tab" id="tab-chat" onclick="setTab('chat')"><i data-lucide="message-square" style="width:14px;height:14px"></i> Chat</div>
+        <div class="rsb-tab" id="tab-notes" onclick="setTab('notes')"><i data-lucide="file-text" style="width:14px;height:14px"></i> Notes</div>
         <div class="rsb-tab" id="tab-music" onclick="setTab('music')"><i data-lucide="music" style="width:14px;height:14px"></i> Music</div>
+        <div class="rsb-close" onclick="toggleSidebar()" title="Minimize Panel" style="margin-left:auto;padding:6px;cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center"><i data-lucide="chevron-right" style="width:16px;height:16px"></i></div>
       </div>
 
       <!-- PEOPLE PANEL -->
@@ -101,6 +104,25 @@
             <button class="emoji-trigger" id="emoji-trigger-btn" onclick="toggleEmojiPicker()" title="Emoji reactions"><i data-lucide="smile" style="width:18px;height:18px;pointer-events:none"></i></button>
             <input type="text" class="chat-input" id="chat-input" placeholder="Type a message..." maxlength="300"/>
             <button class="chat-send" onclick="sendChat()" title="Send"><i data-lucide="arrow-up" style="width:16px;height:16px"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTES PANEL -->
+      <div class="rsb-panel" id="rsb-notes" style="flex-direction:column;height:100%;overflow:hidden">
+        <div style="padding:10px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px">
+          <i data-lucide="edit-3" style="width:14px;height:14px;color:var(--accent)"></i> Live Session Notes
+        </div>
+        <textarea id="shared-notes" placeholder="Type collaborative notes here... everyone in the room will see this in real-time." 
+                  style="flex:1;border:none;resize:none;padding:12px;background:var(--bg);color:var(--text);font-size:13px;outline:none;font-family:inherit;line-height:1.5"
+                  oninput="handleNotesInput(this.value)"></textarea>
+        
+        <div style="border-top:1px solid var(--border);padding:10px;background:var(--bg2)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text)">Shared Goals</div>
+          <div id="todo-list" style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="todo-input" placeholder="Add a goal..." style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;outline:none" onkeypress="if(event.key==='Enter') addTodo()">
+            <button onclick="addTodo()" style="padding:6px 10px;border-radius:6px;background:var(--accent);border:none;color:#fff;font-size:12px;cursor:pointer;font-weight:600">Add</button>
           </div>
         </div>
       </div>
@@ -126,21 +148,28 @@
   <div class="controls-bar">
     <!-- LEFT GROUP -->
     <div class="ctrl-group ctrl-group-left">
-      <button class="ctrl-btn-zoom" id="btn-mic" onclick="toggleMic()" title="Microphone">
+      <button class="ctrl-btn-zoom" id="btn-mic" onclick="toggleMic()" title="Microphone" style="position:relative">
         <i data-lucide="mic" style="width:20px;height:20px"></i>
         <span class="ctrl-label">Mute</span>
+        <span id="mic-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>
       </button>
-      <button class="ctrl-btn-zoom" id="btn-cam" onclick="toggleCam()" title="Camera">
+      <button class="ctrl-btn-zoom" id="btn-cam" onclick="toggleCam()" title="Camera" style="position:relative">
         <i data-lucide="camera" style="width:20px;height:20px"></i>
         <span class="ctrl-label">Stop Video</span>
+        <span id="cam-status-dot" style="position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:2px solid var(--bg,#fff);transition:background 0.2s"></span>
       </button>
     </div>
 
+
     <!-- CENTER GROUP -->
     <div class="ctrl-group ctrl-group-center">
-      <button class="ctrl-btn-zoom" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Participants & Chat">
+      <button class="ctrl-btn-zoom" id="btn-participants" onclick="openPeopleTab()" title="Participants">
         <i data-lucide="users" style="width:20px;height:20px"></i>
         <span class="ctrl-label">Participants</span>
+      </button>
+      <button class="ctrl-btn-zoom" id="feat-collapse-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar Panel">
+        <i data-lucide="panel-right" style="width:20px;height:20px"></i>
+        <span class="ctrl-label">Hide Panel</span>
       </button>
       <button class="ctrl-btn-zoom" id="btn-hand" onclick="toggleRaiseHand()" title="Raise Hand">
         <i data-lucide="hand" style="width:20px;height:20px"></i>
@@ -163,8 +192,8 @@
         </button>
         <!-- MORE MENU POPOVER -->
         <div class="more-menu-popup" id="more-menu">
-          <button class="more-item" onclick="toggleFeature('whiteboard'); toggleMoreMenu()">
-            <i data-lucide="pen-tool" style="width:16px;height:16px"></i> Whiteboard
+          <button class="more-item" onclick="toggleFeature('drawguess'); toggleMoreMenu()">
+            <i data-lucide="pen-tool" style="width:16px;height:16px"></i> Draw & Guess
           </button>
           <button class="more-item" onclick="toggleFeature('timer'); toggleMoreMenu()">
             <i data-lucide="timer" style="width:16px;height:16px"></i> Pomodoro Timer
@@ -181,7 +210,13 @@
           <button class="more-item" onclick="openFocusSetup(); toggleMoreMenu()">
             <i data-lucide="target" style="width:16px;height:16px"></i> Saint Focus
           </button>
+          <button class="more-item" id="btn-blur" onclick="toggleBackgroundBlur(); toggleMoreMenu()">
+            <i data-lucide="person-standing" style="width:16px;height:16px"></i> Background Blur
+          </button>
           <div class="more-divider"></div>
+          <button class="more-item" onclick="openConnectDevice(); toggleMoreMenu()">
+            <i data-lucide="qr-code" style="width:16px;height:16px"></i> Connect Device
+          </button>
           <button class="more-item" onclick="toggleTheme(); toggleMoreMenu()">
             <i data-lucide="moon" id="theme-icon" style="width:16px;height:16px"></i> Toggle Theme
           </button>
@@ -322,7 +357,12 @@
     <p style="font-size:13px;color:var(--muted);margin:0 0 16px">Block distractions. Others see you in focus mode. Timer locks after you start.</p>
     <label style="font-size:12px;font-weight:600;color:var(--muted)">Study PDF</label>
     <input type="file" id="room-focus-file" accept="application/pdf" style="width:100%;margin:8px 0 14px;font-size:13px"/>
-    <label style="font-size:12px;font-weight:600;color:var(--muted)">Duration (minutes, set before start)</label>
+    <label style="font-size:12px;font-weight:600;color:var(--muted)">Mode</label>
+    <select id="room-focus-type" style="width:100%;padding:10px;margin:8px 0 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text)">
+      <option value="single">Single Focus (Just Me)</option>
+      <option value="group">Group Focus (Invite Room)</option>
+    </select>
+    <label style="font-size:12px;font-weight:600;color:var(--muted)">Duration (minutes)</label>
     <select id="room-focus-duration" style="width:100%;padding:10px;margin:8px 0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text)">
       <option value="15">15 min</option>
       <option value="25" selected>25 min</option>
@@ -338,15 +378,55 @@
   </div>
 </div>
 
+<!-- GROUP FOCUS INVITE MODAL -->
+<div class="modal-overlay" id="modal-group-focus-invite">
+  <div class="modal" style="max-width:400px;text-align:center">
+    <div style="width:48px;height:48px;border-radius:50%;background:var(--accent-faint);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><i data-lucide="target" style="width:24px;height:24px"></i></div>
+    <h2 id="gfi-title" style="margin:0 0 8px">Group Focus Session</h2>
+    <p id="gfi-desc" style="font-size:14px;color:var(--muted);margin:0 0 20px">Someone invited you to study.</p>
+    <div style="display:flex;gap:12px;justify-content:center">
+      <button onclick="rejectGroupFocus()" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);font-weight:600;cursor:pointer">Decline</button>
+      <button onclick="acceptGroupFocus()" style="flex:1;padding:12px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Accept & Join</button>
+    </div>
+  </div>
+</div>
+
 <!-- SAINT FOCUS OVERLAY -->
 <div class="room-focus-overlay" id="room-focus-overlay">
   <div class="room-focus-main">
     <iframe id="room-focus-pdf" title="Study material"></iframe>
+    
+    <!-- Doubt Chat UI (Floating) -->
+    <div id="focus-doubt-chat" style="display:none;position:absolute;bottom:20px;right:20px;width:340px;background:var(--bg);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:480px;height:60vh;overflow:hidden;z-index:50">
+      <div style="padding:10px 14px;background:var(--accent);color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">
+        <i data-lucide="help-circle" style="width:16px;height:16px"></i> Group Doubts
+        <button onclick="document.getElementById('focus-doubt-chat').style.display='none'" style="margin-left:auto;background:none;border:none;color:#fff;cursor:pointer"><i data-lucide="x" style="width:14px;height:14px"></i></button>
+      </div>
+      <div id="focus-doubt-messages" style="flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--bg2)">
+        <!-- Doubts go here -->
+      </div>
+      
+      <!-- Audio Recording Banner -->
+      <div id="focus-audio-banner" style="display:none;padding:10px;background:rgba(239,68,68,0.1);border-top:1px solid var(--border);align-items:center;gap:8px">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--danger);animation:pulse 1.5s infinite"></div>
+        <span style="font-size:12px;color:var(--danger);font-weight:600;flex:1" id="focus-audio-timer">Recording... 0:00</span>
+        <button onclick="stopFocusAudio(false)" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">Cancel</button>
+        <button onclick="stopFocusAudio(true)" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;cursor:pointer">Send</button>
+      </div>
+      
+      <!-- Input Area -->
+      <div id="focus-doubt-input-area" style="padding:10px;background:var(--bg);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+        <input type="text" id="focus-doubt-input" placeholder="Type /doubt or reply..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:20px;background:var(--bg2);color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter') sendFocusDoubt()">
+        <button id="focus-audio-btn" onclick="toggleFocusAudio()" title="Record Audio" style="background:var(--bg3);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text)"><i data-lucide="mic" style="width:16px;height:16px"></i></button>
+      </div>
+    </div>
   </div>
   <div class="room-focus-rail">
     <div class="room-focus-timer" id="room-focus-timer">25:00</div>
+    <div id="focus-mode-type-badge" style="background:var(--accent);color:#fff;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:10px;display:none">GROUP FOCUS</div>
     <p style="font-size:11px;color:var(--muted);text-align:center;margin:8px 0">No chat · no sounds until timer ends</p>
     <button type="button" class="room-focus-end" onclick="if(confirm('End focus early?'))endRoomFocusMode()">End Focus</button>
+    <button type="button" class="room-focus-end" style="margin-top:10px;background:var(--bg3);color:var(--text);border:1px solid var(--border)" onclick="document.getElementById('focus-doubt-chat').style.display='flex'">Doubts <span id="doubt-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:2px 6px;margin-left:4px">1</span></button>
   </div>
 </div>
 
@@ -358,6 +438,64 @@
 <script src="/features/music/music-bot.js"></script>
 <script src="/core/js/room.js"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<!-- ── CONNECT DEVICE MODAL ─────────────────────────────── -->
+<div id="connect-device-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:9999;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:32px;max-width:380px;width:90%;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 24px 80px rgba(0,0,0,0.6)">
+    <div style="text-align:center">
+      <div style="font-size:24px;margin-bottom:8px">📱</div>
+      <h2 style="font-size:18px;font-weight:800;margin-bottom:6px">Connect a Device</h2>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Scan with your phone or tablet to open <strong>Presenter Mode</strong>. Share your camera, mic, or screen directly from your device.</p>
+    </div>
+    <div id="room-qr-container" style="background:#fff;padding:14px;border-radius:12px;width:190px;height:190px;display:flex;align-items:center;justify-content:center"></div>
+    <div id="room-presenter-url" style="background:var(--bg2,#1e1e2a);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);word-break:break-all;text-align:center;width:100%"></div>
+    <div style="display:flex;gap:10px;width:100%">
+      <button onclick="copyDeviceLink()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--bg2,#1e1e2a);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" id="copy-device-btn">
+        <i data-lucide="copy" style="width:14px;height:14px;vertical-align:-2px"></i> Copy Link
+      </button>
+      <button onclick="closeConnectDevice()" style="flex:1;padding:11px;border-radius:10px;border:none;background:var(--accent,#7c6dfa);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+        Done
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _cdQrGenerated = false;
+function openConnectDevice() {
+  const modal = document.getElementById('connect-device-modal');
+  modal.style.display = 'flex';
+  const code = window.roomCode || window.location.pathname.split('/').pop();
+  const url  = window.location.origin + '/presenter/' + code;
+  document.getElementById('room-presenter-url').textContent = url;
+  if (!_cdQrGenerated && typeof QRCode !== 'undefined') {
+    new QRCode(document.getElementById('room-qr-container'), {
+      text: url, width: 162, height: 162,
+      colorDark: '#0f0f13', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    _cdQrGenerated = true;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+function closeConnectDevice() {
+  document.getElementById('connect-device-modal').style.display = 'none';
+}
+function copyDeviceLink() {
+  const code = window.roomCode || window.location.pathname.split('/').pop();
+  const url  = window.location.origin + '/presenter/' + code;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('copy-device-btn');
+    btn.innerHTML = '✅ Copied!';
+    setTimeout(() => { btn.innerHTML = '<i data-lucide="copy" style="width:14px;height:14px;vertical-align:-2px"></i> Copy Link'; lucide.createIcons(); }, 2000);
+  });
+}
+document.getElementById('connect-device-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeConnectDevice();
+});
+</script>
+
 <script>lucide.createIcons();</script>
 </body>
 </html>

@@ -1,0 +1,233 @@
+.drawguess-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+
+.dg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+.dg-header-left, .dg-header-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+}
+
+.dg-header-right {
+  justify-content: flex-end;
+}
+
+.dg-header-center {
+  flex: 2;
+  text-align: center;
+}
+
+.dg-header-center h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 4px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.dg-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg3);
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+#dg-start-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+#dg-start-btn:hover { opacity: 0.9; }
+
+.dg-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.dg-canvas-wrapper {
+  flex: 3;
+  position: relative;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+#dg-canvas {
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.dg-toolbar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 10px 20px;
+  border-radius: 30px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.dg-toolbar input[type="color"] {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+.dg-toolbar input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.dg-toolbar input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+.dg-toolbar button {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dg-sidebar {
+  flex: 1;
+  min-width: 250px;
+  max-width: 350px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+}
+
+.dg-scores {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.dg-score-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg);
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.dg-score-item.drawing {
+  border-color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.dg-score-item.guessed {
+  border-color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.dg-chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dg-chat-messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dg-msg {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  align-self: flex-start;
+  max-width: 90%;
+  word-wrap: break-word;
+}
+.dg-msg.sys {
+  background: transparent;
+  color: var(--success);
+  font-weight: 600;
+  align-self: center;
+  text-align: center;
+}
+
+.dg-chat-input-wrapper {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  background: var(--bg);
+}
+
+#dg-guess-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  outline: none;
+  font-size: 13px;
+}
+
+.dg-chat-input-wrapper button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}

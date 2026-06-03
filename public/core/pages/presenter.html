@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presenter Mode — StudyRoom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- QRCode.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f13;
+      --surface: #16161e;
+      --surface2: #1e1e2a;
+      --border: rgba(255,255,255,0.08);
+      --text: #e8e8f0;
+      --muted: #7878a0;
+      --accent: #7c6dfa;
+      --accent-light: #a594ff;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 0;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 16px; z-index: 20;
+    }
+    .logo { font-weight: 800; font-size: 15px; background: linear-gradient(135deg, var(--accent-light), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .room-badge { padding: 3px 10px; border-radius: 20px; background: var(--surface2); border: 1px solid rgba(124,109,250,0.3); color: var(--accent-light); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+    .hdr-status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ── MAIN CONTENT ── */
+    .content {
+      margin-top: 52px;
+      width: 100%;
+      max-width: 960px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 28px 0;
+    }
+
+    /* ── PREVIEW CARD ── */
+    .preview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .card-body { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Video preview */
+    .video-preview {
+      position: relative;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+    }
+    #presenter-video {
+      width: 100%; height: 100%; object-fit: cover;
+      border-radius: 10px;
+    }
+    .video-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px;
+      background: rgba(0,0,0,0.7);
+      color: var(--muted); font-size: 13px;
+      pointer-events: none;
+    }
+    .video-overlay.hidden { display: none; }
+    .no-video-icon { color: var(--danger); opacity: 0.7; }
+
+    /* Controls */
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ctrl-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text);
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+      font-family: inherit; position: relative; overflow: hidden;
+    }
+    .ctrl-btn:hover { background: rgba(124,109,250,0.1); border-color: rgba(124,109,250,0.3); color: var(--accent-light); }
+    .ctrl-btn.active { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.4); color: var(--success); }
+    .ctrl-btn.off { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: var(--danger); }
+    .ctrl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); transition: background 0.2s; }
+    .ctrl-dot.red { background: var(--danger); }
+
+    .full-btn {
+      grid-column: 1 / -1;
+      background: var(--accent); border-color: var(--accent); color: #fff;
+    }
+    .full-btn:hover { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
+    .full-btn.streaming { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: var(--danger); }
+
+    /* ── STREAM CARD ── */
+    .stream-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .stream-body { flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* Live stream view */
+    .stream-viewer {
+      position: relative;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #room-stream-video {
+      width: 100%; height: 100%; object-fit: cover;
+    }
+    .no-stream-state {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      color: var(--muted); font-size: 13px;
+      padding: 24px; text-align: center;
+    }
+
+    /* Participants in stream */
+    .stream-participants { display: flex; flex-wrap: wrap; gap: 8px; }
+    .stream-participant-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 20px;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--text);
+    }
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+    /* ── QR MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; backdrop-filter: blur(8px);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 380px;
+      width: 90%;
+      display: flex; flex-direction: column; align-items: center; gap: 20px;
+      transform: scale(0.95); transition: transform 0.2s;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+    .modal-overlay.open .modal { transform: scale(1); }
+    .modal h2 { font-size: 18px; font-weight: 800; text-align: center; }
+    .modal p { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.6; }
+    #qr-container {
+      background: #fff; padding: 16px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      width: 200px; height: 200px;
+    }
+    .presenter-url {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+      font-size: 11px; color: var(--muted); word-break: break-all;
+      text-align: center; width: 100%;
+    }
+    .modal-actions { display: flex; gap: 10px; width: 100%; }
+    .modal-btn {
+      flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .modal-btn:hover { background: var(--surface); border-color: var(--border); }
+    .modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .modal-btn.primary:hover { background: var(--accent-light); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 680px) {
+      .content { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">📡 Presenter Mode</span>
+  <span class="room-badge" id="hdr-room-code">----</span>
+  <div class="hdr-status">
+    <div class="status-dot" id="connection-dot" style="background:var(--danger)"></div>
+    <span id="connection-status">Connecting...</span>
+  </div>
+</header>
+
+<div class="page">
+  <div class="content">
+
+    <!-- LEFT: My Camera/Mic Controls -->
+    <div class="preview-card">
+      <div class="card-header">
+        <i data-lucide="video" style="width:16px;height:16px;color:var(--accent-light)"></i>
+        <span class="card-title">My Presentation</span>
+      </div>
+      <div class="card-body">
+        <div class="video-preview">
+          <video id="presenter-video" autoplay muted playsinline></video>
+          <div class="video-overlay" id="cam-overlay">
+            <div class="no-video-icon"><i data-lucide="video-off" style="width:36px;height:36px"></i></div>
+            <span>Camera off</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="ctrl-btn" id="mic-btn" onclick="togglePresenterMic()">
+            <div class="ctrl-dot red" id="mic-dot"></div>
+            <i data-lucide="mic-off" id="mic-icon" style="width:16px;height:16px"></i>
+            <span id="mic-label">Enable Mic</span>
+          </button>
+          <button class="ctrl-btn" id="cam-btn" onclick="togglePresenterCam()">
+            <div class="ctrl-dot red" id="cam-dot"></div>
+            <i data-lucide="video-off" id="cam-icon" style="width:16px;height:16px"></i>
+            <span id="cam-label">Enable Cam</span>
+          </button>
+          <button class="ctrl-btn full-btn" id="stream-btn" onclick="toggleStream()">
+            <i data-lucide="radio" style="width:16px;height:16px"></i>
+            <span id="stream-label">Go Live to Room</span>
+          </button>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+          💡 <strong>How it works:</strong> Enable your mic and camera, then hit <strong>Go Live</strong>. All participants in the room will instantly see your stream.
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Room Participants Viewing -->
+    <div class="stream-card">
+      <div class="card-header">
+        <i data-lucide="users" style="width:16px;height:16px;color:var(--success)"></i>
+        <span class="card-title">Room Viewers</span>
+      </div>
+      <div class="stream-body">
+        <div class="stream-viewer" id="stream-viewer">
+          <div class="no-stream-state" id="no-stream-msg">
+            <i data-lucide="radio" style="width:40px;height:40px;opacity:0.3"></i>
+            <p>Your stream will appear here once you go live.<br>Room participants will see this same feed.</p>
+          </div>
+          <video id="room-stream-video" autoplay playsinline style="display:none"></video>
+        </div>
+
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px">Online Participants</div>
+          <div class="stream-participants" id="online-participants">
+            <div style="font-size:12px;color:var(--muted)">Loading...</div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px">Invite Others</div>
+          <button class="ctrl-btn" style="width:100%;justify-content:flex-start;gap:10px" onclick="openQRModal()">
+            <i data-lucide="qr-code" style="width:16px;height:16px;color:var(--accent-light)"></i>
+            Show QR Code for phone/tablet
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- QR MODAL -->
+<div class="modal-overlay" id="qr-modal">
+  <div class="modal">
+    <h2>📱 Scan to Join</h2>
+    <p>Scan this QR code with your phone or tablet to open this presenter page directly.</p>
+    <div id="qr-container"></div>
+    <div class="presenter-url" id="presenter-url-text"></div>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="copyPresenterLink()">
+        <i data-lucide="copy" style="width:14px;height:14px;vertical-align:-2px"></i> Copy Link
+      </button>
+      <button class="modal-btn primary" onclick="closeQRModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const params    = new URLSearchParams(window.location.search);
+  const roomCode  = window.location.pathname.split('/').pop() || params.get('room') || 'unknown';
+  const socket    = io();
+
+  let presenterStream = null;
+  let micEnabled      = false;
+  let camEnabled      = false;
+  let isStreaming     = false;
+  let peer            = null;
+
+  document.getElementById('hdr-room-code').textContent = roomCode.toUpperCase();
+
+  // ── SOCKET ──────────────────────────────
+  socket.on('connect', () => {
+    document.getElementById('connection-dot').style.background = 'var(--success)';
+    document.getElementById('connection-status').textContent   = 'Connected';
+    socket.emit('presenter-join', { roomCode });
+  });
+  socket.on('disconnect', () => {
+    document.getElementById('connection-dot').style.background = 'var(--danger)';
+    document.getElementById('connection-status').textContent   = 'Disconnected';
+  });
+  socket.on('room-participants', (participants) => {
+    renderParticipants(participants);
+  });
+
+  function renderParticipants(list) {
+    const container = document.getElementById('online-participants');
+    if (!list || !list.length) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--muted)">No one else in the room</div>';
+      return;
+    }
+    container.innerHTML = list.map(p => `
+      <div class="stream-participant-chip">
+        <div class="chip-dot"></div>
+        ${p.name || 'User'}
+      </div>
+    `).join('');
+  }
+
+  // ── MIC ─────────────────────────────────
+  async function togglePresenterMic() {
+    if (micEnabled) {
+      presenterStream?.getAudioTracks().forEach(t => { t.stop(); presenterStream.removeTrack(t); });
+      micEnabled = false;
+      setMicUI(false);
+    } else {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getAudioTracks().forEach(t => {
+          if (!presenterStream) presenterStream = new MediaStream();
+          presenterStream.addTrack(t);
+        });
+        micEnabled = true;
+        setMicUI(true);
+      } catch (e) {
+        alert('Could not access microphone: ' + e.message);
+      }
+    }
+  }
+
+  function setMicUI(on) {
+    const btn = document.getElementById('mic-btn');
+    const dot = document.getElementById('mic-dot');
+    const icon = document.getElementById('mic-icon');
+    const label = document.getElementById('mic-label');
+    dot.className    = 'ctrl-dot' + (on ? '' : ' red');
+    icon.dataset.lucide = on ? 'mic' : 'mic-off';
+    label.textContent = on ? 'Mic On' : 'Enable Mic';
+    btn.className     = 'ctrl-btn' + (on ? ' active' : ' off');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ── CAM ─────────────────────────────────
+  async function togglePresenterCam() {
+    const video = document.getElementById('presenter-video');
+    const overlay = document.getElementById('cam-overlay');
+
+    if (camEnabled) {
+      presenterStream?.getVideoTracks().forEach(t => { t.stop(); presenterStream.removeTrack(t); });
+      camEnabled = false;
+      video.srcObject = null;
+      overlay.classList.remove('hidden');
+      setCamUI(false);
+    } else {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        s.getVideoTracks().forEach(t => {
+          if (!presenterStream) presenterStream = new MediaStream();
+          presenterStream.addTrack(t);
+        });
+        video.srcObject = presenterStream;
+        overlay.classList.add('hidden');
+        camEnabled = true;
+        setCamUI(true);
+      } catch (e) {
+        alert('Could not access camera: ' + e.message);
+      }
+    }
+  }
+
+  function setCamUI(on) {
+    const btn   = document.getElementById('cam-btn');
+    const dot   = document.getElementById('cam-dot');
+    const icon  = document.getElementById('cam-icon');
+    const label = document.getElementById('cam-label');
+    dot.className      = 'ctrl-dot' + (on ? '' : ' red');
+    icon.dataset.lucide = on ? 'video' : 'video-off';
+    label.textContent  = on ? 'Cam On' : 'Enable Cam';
+    btn.className      = 'ctrl-btn' + (on ? ' active' : ' off');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ── STREAM ──────────────────────────────
+  async function toggleStream() {
+    const btn   = document.getElementById('stream-btn');
+    const label = document.getElementById('stream-label');
+
+    if (isStreaming) {
+      isStreaming = false;
+      socket.emit('presenter-stop', { roomCode });
+      label.textContent = 'Go Live to Room';
+      btn.classList.remove('streaming');
+    } else {
+      if (!presenterStream || (!micEnabled && !camEnabled)) {
+        alert('Please enable your camera or microphone first before going live!');
+        return;
+      }
+      isStreaming = true;
+      label.textContent = '🔴 Stop Streaming';
+      btn.classList.add('streaming');
+      // Emit stream started — in production you'd use WebRTC here
+      socket.emit('presenter-live', { roomCode, hasVideo: camEnabled, hasAudio: micEnabled });
+
+      // Update local stream preview
+      const viewerVideo = document.getElementById('room-stream-video');
+      viewerVideo.srcObject = presenterStream;
+      viewerVideo.style.display = 'block';
+      document.getElementById('no-stream-msg').style.display = 'none';
+    }
+  }
+
+  // ── QR MODAL ────────────────────────────
+  let qrGenerated = false;
+  function openQRModal() {
+    const presenterUrl = window.location.origin + '/presenter/' + roomCode;
+    document.getElementById('presenter-url-text').textContent = presenterUrl;
+
+    if (!qrGenerated) {
+      new QRCode(document.getElementById('qr-container'), {
+        text: presenterUrl,
+        width: 168,
+        height: 168,
+        colorDark: '#0f0f13',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      qrGenerated = true;
+    }
+
+    document.getElementById('qr-modal').classList.add('open');
+  }
+
+  function closeQRModal() {
+    document.getElementById('qr-modal').classList.remove('open');
+  }
+
+  function copyPresenterLink() {
+    const url = window.location.origin + '/presenter/' + roomCode;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = event.currentTarget;
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✅ Copied!';
+      setTimeout(() => { btn.innerHTML = orig; }, 2000);
+    });
+  }
+
+  // Close modal on overlay click
+  document.getElementById('qr-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('qr-modal')) closeQRModal();
+  });
+
+  // init lucide
+  if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
